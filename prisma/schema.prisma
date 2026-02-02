@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  price       Decimal 
+  categoryId  String?
+  image       String?
+  isActive    Boolean  @default(true)
+  recipe      RecipeItem[]
+  sales       SaleItem[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Ingredient {
+  id          String   @id @default(uuid())
+  name        String
+  unit        String   // kg, liter, unit
+  cost        Decimal 
+  stock       Decimal 
+  minStock    Decimal  // Reorder point
+  recipeItems RecipeItem[]
+  wasteLogs   WasteLog[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model RecipeItem {
+  id           String     @id @default(uuid())
+  productId    String
+  product      Product    @relation(fields: [productId], references: [id])
+  ingredientId String
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id])
+  quantity     Decimal    // Amount of ingredient per product
+}
+
+model Sale {
+  id          String   @id @default(uuid())
+  date        DateTime @default(now())
+  total       Decimal 
+  paymentMethod String // Cash, MP, Transfer
+  channel     String   // Rappi, WhatsApp, Counter
+  items       SaleItem[]
+  clientName  String?   // Name for the ticket (Walk-in)
+  customerId  String?
+  customer    Customer? @relation(fields: [customerId], references: [id])
+  status      String    @default("COMPLETED") // COMPLETED, CANCELLED, REFUNDED
+}
+
+model SaleItem {
+  id        String  @id @default(uuid())
+  saleId    String
+  sale      Sale    @relation(fields: [saleId], references: [id])
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  unitPrice Decimal // Price at the moment of sale
+}
+
+model Expense {
+  id          String   @id @default(uuid())
+  date        DateTime
+  category    String   // Rent, Utilities, Salaries, Packaging
+  amount      Decimal 
+  description String?
+  isFixed     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model Customer {
+  id        String   @id @default(uuid())
+  name      String?
+  phone     String?  @unique
+  email     String?
+  sales     Sale[]
+  lastPurchase DateTime?
+  totalSpent Decimal @default(0)
+  createdAt   DateTime @default(now())
+}
+
+model WasteLog {
+  id           String   @id @default(uuid())
+  date         DateTime @default(now())
+  description  String
+  cost         Decimal
+  ingredientId String?
+  ingredient   Ingredient? @relation(fields: [ingredientId], references: [id])
+  quantity     Decimal? // Amount lost if linked to ingredient
+  createdAt    DateTime @default(now())
+}
+
+model BrainKnowledge {
+  id        String   @id @default(uuid())
+  content   String   
+  category  String?  // 'operation', 'recipe', 'history'
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}

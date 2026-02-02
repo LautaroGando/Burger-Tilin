@@ -1,0 +1,26 @@
+
+> burger-tilin@0.1.0 build
+> next build
+
+▲ Next.js 16.1.6 (Turbopack)
+- Environments: .env
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 16.9s
+  Running TypeScript ...
+Failed to compile.
+
+./src/app/products/create-product-form.tsx:27:5
+Type error: Type 'Resolver<{ name: string; price: unknown; description?: string | undefined; categoryId?: string | undefined; }, any, { name: string; price: number; description?: string | undefined; categoryId?: string | undefined; }>' is not assignable to type 'Resolver<{ name: string; price: number; description?: string | undefined; categoryId?: string | undefined; }, any, { name: string; price: number; description?: string | undefined; categoryId?: string | undefined; }>'.
+  Types of parameters 'options' and 'options' are incompatible.
+    Type 'ResolverOptions<{ name: string; price: number; description?: string | undefined; categoryId?: string | undefined; }>' is not assignable to type 'ResolverOptions<{ name: string; price: unknown; description?: string | undefined; categoryId?: string | undefined; }>'.
+      Type 'unknown' is not assignable to type 'number'.
+
+[0m [90m 25 |[39m   [36mconst[39m [loading[33m,[39m setLoading] [33m=[39m useState([36mfalse[39m)[33m;[39m
+ [90m 26 |[39m   [36mconst[39m form [33m=[39m useForm[33m<[39m[33mProductFormValues[39m[33m>[39m({
+[31m[1m>[22m[39m[90m 27 |[39m     resolver[33m:[39m zodResolver(productSchema)[33m,[39m
+ [90m    |[39m     [31m[1m^[22m[39m
+ [90m 28 |[39m     defaultValues[33m:[39m {
+ [90m 29 |[39m       name[33m:[39m [32m""[39m[33m,[39m
+ [90m 30 |[39m       description[33m:[39m [32m""[39m[33m,[39m[0m
+Next.js build worker exited with code: 1 and signal: null

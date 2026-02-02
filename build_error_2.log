@@ -1,0 +1,23 @@
+
+> burger-tilin@0.1.0 build
+> next build
+
+▲ Next.js 16.1.6 (Turbopack)
+- Environments: .env
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 5.9s
+  Running TypeScript ...
+Failed to compile.
+
+./src/app/actions/brain-actions.ts:121:22
+Type error: Operator '>' cannot be applied to types 'Decimal' and 'number'.
+
+[0m [90m 119 |[39m   [36mif[39m (recentExpenses[33m.[39mlength [33m>[39m [35m0[39m) {
+ [90m 120 |[39m     [36mconst[39m todayExpenses [33m=[39m recentExpenses
+[31m[1m>[22m[39m[90m 121 |[39m       [33m.[39mfilter((e) [33m=>[39m e[33m.[39mamount [33m>[39m [35m0[39m) [90m// Assuming we might filter by date more strictly later[39m
+ [90m     |[39m                      [31m[1m^[22m[39m
+ [90m 122 |[39m       [33m.[39mreduce((sum[33m,[39m e) [33m=>[39m sum [33m+[39m [33mNumber[39m(e[33m.[39mamount)[33m,[39m [35m0[39m)[33m;[39m
+ [90m 123 |[39m
+ [90m 124 |[39m     [90m// If expenses are more than 50% of revenue (and revenue exists)[39m[0m
+Next.js build worker exited with code: 1 and signal: null

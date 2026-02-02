@@ -1,0 +1,31 @@
+
+> burger-tilin@0.1.0 lint
+> eslint
+
+
+C:\Users\lauti\OneDrive\Escritorio\Proyectos\burger-tilin\src\app\actions\kitchen-actions.ts
+  111:12  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\lauti\OneDrive\Escritorio\Proyectos\burger-tilin\src\app\actions\operations-actions.ts
+  52:12  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+  70:12  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\lauti\OneDrive\Escritorio\Proyectos\burger-tilin\src\app\inventory\predictions\page.tsx
+  4:21  warning  'MotionItem' is defined but never used     @typescript-eslint/no-unused-vars
+  8:3   warning  'CalendarRange' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\lauti\OneDrive\Escritorio\Proyectos\burger-tilin\src\app\operations\page.tsx
+   3:3   warning  'logWaste' is defined but never used      @typescript-eslint/no-unused-vars
+   4:3   warning  'refundSale' is defined but never used    @typescript-eslint/no-unused-vars
+   5:3   warning  'findSaleById' is defined but never used  @typescript-eslint/no-unused-vars
+  13:3   warning  'Trash2' is defined but never used        @typescript-eslint/no-unused-vars
+  14:3   warning  'RotateCcw' is defined but never used     @typescript-eslint/no-unused-vars
+  15:3   warning  'Search' is defined but never used        @typescript-eslint/no-unused-vars
+  17:3   warning  'Save' is defined but never used          @typescript-eslint/no-unused-vars
+  20:10  warning  'Input' is defined but never used         @typescript-eslint/no-unused-vars
+
+C:\Users\lauti\OneDrive\Escritorio\Proyectos\burger-tilin\src\app\operations\refund-search.tsx
+  125:38  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+✖ 14 problems (1 error, 13 warnings)
+
