@@ -1,4 +1,5 @@
 import { getStockPredictions } from "@/app/actions/prediction-actions";
+export const dynamic = "force-dynamic";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { MotionDiv, MotionItem } from "@/components/ui/motion";

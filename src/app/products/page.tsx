@@ -1,4 +1,5 @@
 import { getProducts } from "@/app/actions/product-actions";
+export const dynamic = "force-dynamic";
 import { getIngredients } from "@/app/actions/ingredient-actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

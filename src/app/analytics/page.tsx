@@ -1,4 +1,6 @@
 import { getBreakEvenAnalysis } from "@/app/actions/analytics-actions";
+export const dynamic = "force-dynamic";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MotionDiv, MotionItem } from "@/components/ui/motion";

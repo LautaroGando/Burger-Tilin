@@ -1,4 +1,5 @@
 import { getExpenses, getExpenseStats } from "@/app/actions/expense-actions";
+export const dynamic = "force-dynamic";
 import { ExpenseForm } from "@/components/expense-form";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";

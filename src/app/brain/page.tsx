@@ -1,4 +1,5 @@
 import { getBrainContext } from "@/app/actions/brain-actions";
+export const dynamic = "force-dynamic";
 import { Button } from "@/components/ui/button";
 import { MotionDiv, MotionItem } from "@/components/ui/motion";
 import { ArrowLeft, BrainCircuit, Receipt, Zap } from "lucide-react";

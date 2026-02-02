@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createSale } from "@/app/actions/sale-actions";
 import { getProducts } from "@/app/actions/product-actions";
+export const dynamic = "force-dynamic";
 import { searchCustomers } from "@/app/actions/customer-actions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
