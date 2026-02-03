@@ -47,7 +47,7 @@ export default function PeakHoursChart({ data }: PeakHoursChartProps) {
             }}
             itemStyle={{ color: "#fca90d" }}
             labelFormatter={(h) => `Hora: ${h}:00`}
-            formatter={(value: any) =>
+            formatter={(value: number | string | undefined) =>
               [Number(value || 0), "Pedidos"] as [number, string]
             }
           />

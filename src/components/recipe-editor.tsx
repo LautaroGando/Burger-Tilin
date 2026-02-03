@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
@@ -10,7 +10,15 @@ import {
 } from "@/app/actions/recipe-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Trash2, Plus, Calculator } from "lucide-react";
+import {
+  Trash2,
+  Plus,
+  Calculator,
+  ChefHat,
+  Info,
+  PlusCircle,
+} from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 const schema = z.object({
   ingredientId: z.string().min(1, "Selecciona un insumo"),
@@ -45,15 +53,13 @@ export default function RecipeEditor({
 }: RecipeEditorProps) {
   const [loading, setLoading] = useState(false);
   const form = useForm<FormValues>({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    resolver: zodResolver(schema) as any,
+    resolver: zodResolver(schema) as unknown as Resolver<FormValues>,
     defaultValues: {
       ingredientId: "",
       quantity: 0,
     },
   });
 
-  // Calculate total cost
   const totalCost = existingRecipe.reduce((sum, item) => {
     return sum + Number(item.ingredient.cost) * Number(item.quantity);
   }, 0);
@@ -73,122 +79,179 @@ export default function RecipeEditor({
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("¿Quitar insumo?")) return;
     await removeIngredientFromRecipe(id);
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between p-4 rounded-xl bg-primary/10 border border-primary/20">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-primary/20 rounded-full text-primary">
-            <Calculator className="h-5 w-5" />
+    <div className="space-y-8 py-2">
+      {/* Total Cost Header */}
+      <div className="relative overflow-hidden p-6 rounded-3xl bg-zinc-900/50 border border-white/5 shadow-2xl group">
+        <div className="absolute -top-12 -right-12 w-24 h-24 bg-primary/10 blur-3xl rounded-full group-hover:bg-primary/20 transition-all duration-500" />
+        <div className="relative flex items-center justify-between">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Calculator className="h-4 w-4 text-primary" />
+              <span className="text-xs font-black text-neutral-500 uppercase tracking-widest">
+                Costo de Producción
+              </span>
+            </div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-4xl font-black text-white">$</span>
+              <span className="text-4xl font-black text-white">
+                {totalCost.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </span>
+            </div>
           </div>
-          <div>
-            <p className="text-sm text-gray-400">Costo Total Estimado</p>
-            <p className="text-2xl font-black text-white">
-              ${totalCost.toFixed(2)}
-            </p>
+          <div className="h-12 w-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+            <ChefHat className="h-6 w-6 text-primary" />
           </div>
         </div>
       </div>
 
+      {/* Composition List */}
       <div className="space-y-4">
-        <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">
-          Composición
-        </h4>
+        <div className="flex items-center justify-between px-2">
+          <h4 className="text-[10px] font-black text-neutral-500 uppercase tracking-[0.2em]">
+            Composición Actual
+          </h4>
+          <span className="text-[10px] font-bold text-neutral-600 bg-white/5 px-2 py-0.5 rounded-full">
+            {existingRecipe.length} Insumos
+          </span>
+        </div>
 
-        {existingRecipe.length === 0 ? (
-          <p className="text-center text-gray-500 py-4 text-sm italic">
-            Este producto no tiene receta definida.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {existingRecipe.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5 hover:border-white/10 transition-colors"
+        <div className="min-h-[200px] max-h-[400px] overflow-y-auto custom-scrollbar pr-2 space-y-3">
+          <AnimatePresence mode="popLayout">
+            {existingRecipe.length === 0 ? (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex flex-col items-center justify-center py-12 px-4 rounded-3xl border border-dashed border-white/5 bg-white/[0.01]"
               >
-                <div>
-                  <p className="text-white font-medium">
-                    {item.ingredient.name}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {Number(item.quantity)} {item.ingredient.unit} x $
-                    {Number(item.ingredient.cost).toFixed(2)}
-                  </p>
+                <div className="p-3 bg-white/5 rounded-2xl mb-3">
+                  <Info className="h-5 w-5 text-neutral-600" />
                 </div>
-                <div className="flex items-center gap-4">
-                  <p className="font-mono text-primary font-bold">
-                    $
-                    {(
-                      Number(item.ingredient.cost) * Number(item.quantity)
-                    ).toFixed(2)}
-                  </p>
-                  <button
-                    onClick={() => handleDelete(item.id)}
-                    className="text-gray-600 hover:text-red-500 transition-colors"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+                <p className="text-sm font-bold text-neutral-500 text-center">
+                  No hay ingredientes cargados todavía
+                </p>
+                <p className="text-[10px] text-neutral-600 text-center mt-1 uppercase tracking-wider">
+                  Empieza por agregar los insumos debajo
+                </p>
+              </motion.div>
+            ) : (
+              existingRecipe.map((item) => (
+                <motion.div
+                  key={item.id}
+                  layout
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="group flex items-center justify-between p-4 rounded-2xl bg-zinc-900/30 border border-white/5 hover:border-primary/20 hover:bg-zinc-900/50 transition-all duration-300"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 rounded-xl bg-white/5 flex items-center justify-center group-hover:bg-primary/10 transition-colors">
+                      <span className="text-xs font-black text-neutral-400 group-hover:text-primary">
+                        {item.ingredient.unit}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-white group-hover:text-primary transition-colors">
+                        {item.ingredient.name}
+                      </p>
+                      <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-tighter">
+                        {Number(item.quantity)} x $
+                        {Number(item.ingredient.cost).toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-6">
+                    <div className="text-right">
+                      <p className="text-[9px] font-black text-neutral-600 uppercase tracking-widest">
+                        Subtotal
+                      </p>
+                      <p className="text-sm font-black text-white">
+                        $
+                        {(
+                          Number(item.ingredient.cost) * Number(item.quantity)
+                        ).toFixed(2)}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleDelete(item.id)}
+                      className="p-2 rounded-lg text-neutral-600 hover:text-red-500 hover:bg-red-500/10 transition-all opacity-0 group-hover:opacity-100"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </motion.div>
+              ))
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        className="space-y-4 pt-4 border-t border-white/10"
-      >
-        <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">
-          Agregar Insumo
-        </h4>
-        <div className="grid grid-cols-[2fr,1fr,auto] gap-2 items-end">
-          <div className="space-y-2">
-            <select
-              {...form.register("ingredientId")}
-              className="flex h-10 w-full rounded-md border border-input bg-white/5 px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 text-white"
-            >
-              <option value="" className="bg-gray-900">
-                Seleccionar...
-              </option>
-              {availableIngredients.map((ing) => (
-                <option key={ing.id} value={ing.id} className="bg-gray-900">
-                  {ing.name} ({ing.unit})
+      {/* Add Form */}
+      <div className="pt-6 border-t border-white/5">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <div className="flex items-center justify-between px-2 mb-2">
+            <h4 className="text-[10px] font-black text-primary uppercase tracking-[0.2em] flex items-center gap-2">
+              <PlusCircle className="h-3 w-3" /> Agregar Insumo
+            </h4>
+          </div>
+
+          <div className="grid grid-cols-[1fr,100px,auto] gap-3 items-start">
+            <div className="space-y-2">
+              <select
+                {...form.register("ingredientId")}
+                className="w-full h-12 bg-zinc-900/50 border border-white/10 rounded-2xl px-4 text-sm font-bold text-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all appearance-none custom-select-arrow"
+              >
+                <option value="" className="bg-zinc-950">
+                  Insumo...
                 </option>
-              ))}
-            </select>
+                {availableIngredients.map((ing) => (
+                  <option key={ing.id} value={ing.id} className="bg-zinc-950">
+                    {ing.name} ({ing.unit})
+                  </option>
+                ))}
+              </select>
+              {form.formState.errors.ingredientId && (
+                <p className="text-[10px] font-bold text-red-500 px-1">
+                  {form.formState.errors.ingredientId.message}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Input
+                type="number"
+                step="0.0001"
+                placeholder="Cant."
+                className="h-12 bg-zinc-900/50 border border-white/10 rounded-2xl px-4 text-sm font-bold text-white focus:outline-none"
+                {...form.register("quantity")}
+              />
+              {form.formState.errors.quantity && (
+                <p className="text-[10px] font-bold text-red-500 px-1">
+                  {form.formState.errors.quantity.message}
+                </p>
+              )}
+            </div>
+
+            <Button
+              type="submit"
+              disabled={loading}
+              className="h-12 w-12 rounded-2xl bg-primary hover:bg-primary/80 text-black shadow-lg shadow-primary/20 transition-all flex items-center justify-center shrink-0"
+            >
+              {loading ? (
+                <div className="h-4 w-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+              ) : (
+                <Plus className="h-5 w-5 font-black" />
+              )}
+            </Button>
           </div>
-          <div className="space-y-2">
-            <Input
-              type="number"
-              step="0.0001"
-              placeholder="Cant."
-              {...form.register("quantity")}
-            />
-          </div>
-          <Button
-            type="submit"
-            disabled={loading}
-            size="icon"
-            className="h-10 w-10 shrink-0"
-          >
-            <Plus className="h-4 w-4" />
-          </Button>
-        </div>
-        {form.formState.errors.ingredientId && (
-          <p className="text-xs text-red-500">
-            {form.formState.errors.ingredientId.message}
-          </p>
-        )}
-        {form.formState.errors.quantity && (
-          <p className="text-xs text-red-500">
-            {form.formState.errors.quantity.message}
-          </p>
-        )}
-      </form>
+        </form>
+      </div>
     </div>
   );
 }

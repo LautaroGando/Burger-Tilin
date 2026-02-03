@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { autoTrain } from "./ai-actions";
 
 import { ingredientSchema } from "@/lib/schemas";
+import { Ingredient } from "@/lib/types";
 
 export type IngredientFormValues = z.infer<typeof ingredientSchema>;
 
@@ -39,7 +40,7 @@ export async function updateIngredient(id: string, data: IngredientFormValues) {
   }
 }
 
-export async function getIngredients() {
+export async function getIngredients(): Promise<Ingredient[]> {
   try {
     const ingredients = await prisma.ingredient.findMany({
       orderBy: { name: "asc" },
@@ -50,7 +51,7 @@ export async function getIngredients() {
       cost: Number(ing.cost),
       stock: Number(ing.stock),
       minStock: Number(ing.minStock),
-    }));
+    })) as Ingredient[];
   } catch {
     return [];
   }

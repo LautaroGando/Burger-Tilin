@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { Sale } from "@/lib/types";
 
 export type BreakEvenData = {
   fixedCosts: number;
@@ -95,32 +96,29 @@ export async function getBreakEvenAnalysis(): Promise<{
     variableCosts += extraVariableCosts;
 
     // 3. Calculate Break-even
-    const grossMargin = totalSales - variableCosts - totalCommissions;
-    const contributionMarginRatio =
-      totalSales > 0 ? grossMargin / totalSales : 0;
+    const netSales = totalSales - totalCommissions;
+    const grossMargin = netSales - variableCosts;
+    const contributionMarginRatio = netSales > 0 ? grossMargin / netSales : 0;
 
-    // Break-even Point = Fixed Costs / Ratio
-    // If ratio is 0 or negative (losing money on every burger), break even is impossible (Infinity)
-    let breakEvenPoint = 0;
-    if (contributionMarginRatio > 0) {
-      breakEvenPoint = fixedCosts / contributionMarginRatio;
-    }
+    // 3. Calculate Break-even (Cost Recovery Model)
+    // The user wants to see how much they need to sell to COVER everything spent.
+    // Meta = Fixed + Variable (All costs incurred so far)
+    const breakEvenPoint = fixedCosts + variableCosts;
 
-    const progress =
-      breakEvenPoint > 0 ? (totalSales / breakEvenPoint) * 100 : 0;
+    // Progress is how much of those total costs have been recovered by Net Sales
+    const progress = breakEvenPoint > 0 ? (netSales / breakEvenPoint) * 100 : 0;
 
     return {
       success: true,
       data: {
         fixedCosts,
         variableCosts,
-        totalSales,
+        totalSales: netSales, // Using Net Sales here for a more realistic dashboard
         grossMargin,
         contributionMarginRatio,
-        breakEvenPoint:
-          totalSales === 0 && fixedCosts === 0 ? 0 : breakEvenPoint,
-        progress: totalSales === 0 && fixedCosts === 0 ? 0 : progress,
-        hasActivity: totalSales > 0 || fixedCosts > 0 || variableCosts > 0,
+        breakEvenPoint: netSales === 0 && fixedCosts === 0 ? 0 : breakEvenPoint,
+        progress: netSales === 0 && fixedCosts === 0 ? 0 : progress,
+        hasActivity: netSales > 0 || fixedCosts > 0 || variableCosts > 0,
       },
     };
   } catch (error) {
@@ -131,7 +129,17 @@ export async function getBreakEvenAnalysis(): Promise<{
 
 export type SalesHistoryFilter = "day" | "week" | "month" | "year" | "all";
 
-export async function getSalesHistory(filter: SalesHistoryFilter) {
+export async function getSalesHistory(filter: SalesHistoryFilter): Promise<{
+  success: boolean;
+  sales: Sale[];
+  chartData: { name: string; value: number }[];
+  totalRevenue: number;
+  totalNetRevenue: number;
+  estimatedProfit: number;
+  totalCommissions: number;
+  totalCount: number;
+  error?: string;
+}> {
   try {
     const now = new Date();
     let startDate = new Date(0); // Epoch for "all"
@@ -200,22 +208,48 @@ export async function getSalesHistory(filter: SalesHistoryFilter) {
     // Calculate totals for the period
     let totalRevenue = 0;
     let totalCommissions = 0;
+    let totalCosts = 0;
+
+    // Fetch product costs
+    const productsForCost = await prisma.product.findMany({
+      include: {
+        recipe: {
+          include: { ingredient: true },
+        },
+      },
+    });
+
+    const productCostMap: Record<string, number> = {};
+    productsForCost.forEach((p) => {
+      productCostMap[p.id] = p.recipe.reduce(
+        (sum, item) =>
+          sum + Number(item.quantity) * Number(item.ingredient.cost),
+        0,
+      );
+    });
 
     sales.forEach((s) => {
-      const saleTotal = Number(s.total);
-      totalRevenue += saleTotal;
+      const saleNet = Number(s.total);
+      totalRevenue += saleNet;
+
       if (["RAPPI", "PEYA", "MERCADOPAGO"].includes(s.channel)) {
-        totalCommissions += saleTotal * 0.35;
+        totalCommissions += saleNet * 0.35;
       }
+
+      s.items.forEach((item) => {
+        totalCosts += (productCostMap[item.productId] || 0) * item.quantity;
+      });
     });
 
     const totalNetRevenue = totalRevenue - totalCommissions;
+    const estimatedProfit = totalRevenue - totalCommissions - totalCosts;
     const totalCount = sales.length;
 
     // Serialize Sales (Decimal to Number)
     const serializedSales = sales.map((sale) => ({
       ...sale,
       total: Number(sale.total),
+      discount: Number(sale.discount || 0),
       customer: sale.customer
         ? {
             ...sale.customer,
@@ -228,22 +262,43 @@ export async function getSalesHistory(filter: SalesHistoryFilter) {
         product: {
           ...item.product,
           price: Number(item.product.price),
+          pricePedidosYa: item.product.pricePedidosYa
+            ? Number(item.product.pricePedidosYa)
+            : null,
+          priceRappi: item.product.priceRappi
+            ? Number(item.product.priceRappi)
+            : null,
+          priceMP: item.product.priceMP ? Number(item.product.priceMP) : null,
+          promoDiscount: Number(item.product.promoDiscount || 0),
+          promoDiscountPY: Number(item.product.promoDiscountPY || 0),
+          promoDiscountRappi: Number(item.product.promoDiscountRappi || 0),
+          promoDiscountMP: Number(item.product.promoDiscountMP || 0),
         },
       })),
     }));
 
     return {
       success: true,
-      sales: serializedSales,
+      sales: serializedSales as unknown as Sale[],
       chartData,
       totalRevenue,
       totalNetRevenue,
+      estimatedProfit,
       totalCommissions,
       totalCount,
     };
   } catch (error) {
     console.error("Sales History Error:", error);
-    return { success: false, sales: [], chartData: [] };
+    return {
+      success: false,
+      sales: [],
+      chartData: [],
+      totalRevenue: 0,
+      totalNetRevenue: 0,
+      estimatedProfit: 0,
+      totalCommissions: 0,
+      totalCount: 0,
+    };
   }
 }
 
@@ -309,7 +364,7 @@ export async function getAdvancedAnalytics(): Promise<{
     for (let i = 0; i < 24; i++) hourMap[i] = 0;
 
     const performanceMap: Record<string, ProductPerformance> = {};
-    let totalRevenue = 0;
+    let totalGrossRevenue = 0;
     let totalProfit = 0;
 
     sales.forEach((sale) => {
@@ -319,12 +374,13 @@ export async function getAdvancedAnalytics(): Promise<{
 
       // Revenue & Commission
       const saleTotal = Number(sale.total);
+
       let saleCommission = 0;
       if (["RAPPI", "PEYA", "MERCADOPAGO"].includes(sale.channel)) {
         saleCommission = saleTotal * 0.35;
       }
 
-      totalRevenue += saleTotal - saleCommission;
+      totalGrossRevenue += saleTotal;
 
       // Product Performance
       sale.items.forEach((item) => {
@@ -374,7 +430,7 @@ export async function getAdvancedAnalytics(): Promise<{
     // 5. Business Health Score Calculation
     // Factors: Margin (40%), Volume (30%), Stock Alert Ratio (30%)
     const overallMargin =
-      totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+      totalGrossRevenue > 0 ? (totalProfit / totalGrossRevenue) * 100 : 0;
     const marginComponent = Math.min(overallMargin / 40, 1) * 40; // Max 40 points
 
     // Stock health

@@ -17,6 +17,7 @@ const createSaleSchema = z.object({
   items: z.array(saleItemSchema).min(1, "Debe haber al menos un producto"),
   paymentMethod: z.string(), // Cash, Transfer, etc.
   total: z.number().min(0),
+  discount: z.number().min(0).optional().default(0),
   channel: z.string().optional(),
   clientName: z.string().optional(),
   customerId: z.string().optional().nullable(),
@@ -34,10 +35,11 @@ export async function createSale(data: CreateSaleValues) {
       await tx.sale.create({
         data: {
           total: validated.total,
+          discount: validated.discount,
           paymentMethod: validated.paymentMethod,
           channel: validated.channel || "COUNTER",
           status: "PENDING", // Start as PENDING for Kitchen
-          // clientName removed if type error persists, checking schema again.
+          clientName: validated.clientName,
           customerId: validated.customerId, // Link to registered customer
           items: {
             create: validated.items.map((item) => ({
@@ -163,7 +165,7 @@ export async function getDashboardMetrics() {
       },
     });
 
-    const totalSales = todaysSales.reduce(
+    const grossSalesRaw = todaysSales.reduce(
       (sum, sale) => sum + Number(sale.total),
       0,
     );
@@ -188,11 +190,14 @@ export async function getDashboardMetrics() {
       });
     });
 
-    const estimatedProfit = totalSales - totalCost - totalCommissions;
-    const margin = totalSales > 0 ? (estimatedProfit / totalSales) * 100 : 0;
+    const netSales = grossSalesRaw - totalCommissions;
+    const estimatedProfit = netSales - totalCost;
+    // Calculate margin over GROSS sales to maintain business benchmarks
+    const margin =
+      grossSalesRaw > 0 ? (estimatedProfit / grossSalesRaw) * 100 : 0;
 
     return {
-      totalSales,
+      totalSales: netSales, // Return Net Sales as the primary metric
       totalOrders,
       estimatedProfit,
       margin,

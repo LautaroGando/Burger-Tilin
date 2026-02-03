@@ -12,13 +12,34 @@ model Product {
   name        String
   description String?
   price       Decimal 
+  pricePedidosYa Decimal?
+  priceRappi     Decimal?
+  priceMP        Decimal?
   categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id])
   image       String?
   isActive    Boolean  @default(true)
+  isPromo        Boolean  @default(false)
+  promoDiscount  Float    @default(0)
+  isPromoPY      Boolean  @default(false)
+  promoDiscountPY Float   @default(0)
+  isPromoRappi   Boolean  @default(false)
+  promoDiscountRappi Float @default(0)
+  isPromoMP      Boolean  @default(false)
+  promoDiscountMP Float    @default(0)
   recipe      RecipeItem[]
   sales       SaleItem[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model Category {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  products  Product[]
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 }
 
 model Ingredient {
@@ -47,6 +68,7 @@ model Sale {
   id          String   @id @default(uuid())
   date        DateTime @default(now())
   total       Decimal 
+  discount    Decimal  @default(0)
   paymentMethod String // Cash, MP, Transfer
   channel     String   // Rappi, WhatsApp, Counter
   items       SaleItem[]

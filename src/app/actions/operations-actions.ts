@@ -48,7 +48,7 @@ export async function getWasteLogs() {
       take: 50, // Recent logs
     });
     return { success: true, data: logs };
-  } catch (error) {
+  } catch {
     return { success: false, data: [] };
   }
 }

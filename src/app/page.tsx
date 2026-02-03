@@ -157,7 +157,7 @@ export default async function Home() {
               label: "Ingresos Hoy",
               value: metrics.totalSales,
               icon: DollarSign,
-              sub: "Venta directa",
+              sub: "Ingreso real (Neto)",
             },
             {
               label: "Margen Neto",

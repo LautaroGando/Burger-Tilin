@@ -18,7 +18,7 @@ import {
 type SaleItemType = {
   id: string;
   quantity: number;
-  unitPrice: unknown;
+  unitPrice: number;
   product: { name: string };
 };
 
@@ -26,7 +26,7 @@ type SaleType = {
   id: string;
   date: Date | string;
   clientName: string | null;
-  total: unknown;
+  total: number;
   status: string;
   items: SaleItemType[];
 };
@@ -134,8 +134,7 @@ export default function RefundSearch() {
               Items
             </p>
             <ul className="space-y-1 text-sm text-gray-300">
-              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-              {sale.items.map((item: any) => (
+              {sale.items.map((item) => (
                 <li key={item.id} className="flex justify-between">
                   <span>
                     {item.quantity}x {item.product.name}

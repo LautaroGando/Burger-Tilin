@@ -130,24 +130,28 @@ export default async function AnalyticsPage() {
                         Punto de Equilibrio
                       </h2>
                       <p className="text-neutral-400 mt-2 text-sm sm:text-lg leading-relaxed max-w-xl">
-                        Es el objetivo crítico. Cubre tus{" "}
+                        Tu objetivo para no perder dinero. Cubre tus{" "}
                         <span className="text-white font-bold">
-                          Costos Fijos
+                          Gastos Fijos
                         </span>{" "}
-                        y{" "}
-                        <span className="text-white font-bold">Variables</span>{" "}
-                        para desbloquear la zona de ganancia pura.
+                        y tu{" "}
+                        <span className="text-white font-bold">
+                          Inversión en Insumos
+                        </span>{" "}
+                        para comenzar a generar ganancias.
                       </p>
                     </div>
 
                     <div className="space-y-4">
                       <div className="flex justify-between text-sm font-bold uppercase tracking-wider">
                         <span className="text-neutral-400">
-                          Progreso Actual
+                          Recuperación de Inversión
                         </span>
                         <span
                           className={
-                            isProfitable ? "text-green-400" : "text-primary"
+                            isProfitable || progress >= 100
+                              ? "text-green-400"
+                              : "text-primary"
                           }
                         >
                           {progress.toFixed(1)}%
@@ -155,13 +159,19 @@ export default async function AnalyticsPage() {
                       </div>
                       <div className="h-4 w-full bg-zinc-800 rounded-full overflow-hidden border border-white/5">
                         <div
-                          className={`h-full transition-all duration-1000 ease-out ${isProfitable ? "bg-green-500 shadow-[0_0_20px_rgba(34,197,94,0.5)]" : "bg-primary shadow-[0_0_20px_rgba(252,169,13,0.5)]"}`}
-                          style={{ width: `${percentage}%` }}
+                          className={`h-full transition-all duration-1000 ease-out ${isProfitable || progress >= 100 ? "bg-green-500 shadow-[0_0_20px_rgba(34,197,94,0.5)]" : "bg-primary shadow-[0_0_20px_rgba(252,169,13,0.5)]"}`}
+                          style={{
+                            width: `${Math.min(percentage, 100)}%`,
+                          }}
                         />
                       </div>
                       <div className="flex justify-between text-xs font-medium text-neutral-500">
-                        <span>$0</span>
-                        <span>Meta: ${breakEvenPoint.toLocaleString()}</span>
+                        <span>${totalSales.toLocaleString()} acumulado</span>
+                        <span>
+                          {breakEvenPoint === 0
+                            ? "Sin gastos registrados"
+                            : `Meta: $${breakEvenPoint.toLocaleString()}`}
+                        </span>
                       </div>
                     </div>
 
@@ -204,7 +214,7 @@ export default async function AnalyticsPage() {
                             : !hasActivity || totalSales === 0
                               ? "Esperando Actividad"
                               : grossMargin <= 0
-                                ? "Pérdida Crítica"
+                                ? "Pérdida Crítica (Margen Negativo)"
                                 : "Zona de Cobertura"}
                         </h3>
                         <p className="text-sm text-zinc-300 mt-1 leading-relaxed">
@@ -213,8 +223,10 @@ export default async function AnalyticsPage() {
                             : !hasActivity || totalSales === 0
                               ? "Todavía no hay ventas registradas este mes. Una vez que comiences a vender, el sistema calculará tu progreso."
                               : grossMargin <= 0
-                                ? `Tus ventas ($${totalSales.toLocaleString()}) no cubren ni siquiera tus costos variables ($${variableCosts.toLocaleString()}). Estás perdiendo plata por cada producto que vendés.`
-                                : `Aún necesitas facturar $${(breakEvenPoint - totalSales).toLocaleString()} más para cubrir tus costos operativos totales ($${totalExpenses.toLocaleString()}).`}
+                                ? `¡Alerta! Estás perdiendo plata en cada venta. El costo de insumos y comisiones ($${variableCosts.toLocaleString()}) supera tus ventas netas ($${totalSales.toLocaleString()}). Revisá tus precios urgente.`
+                                : fixedCosts === 0
+                                  ? `Tus ventas cubren tus costos pero no has registrado Gastos Fijos (Alquiler, Sueldos). Agregalos para ver tu meta real.`
+                                  : `Aún necesitas facturar $${(breakEvenPoint - totalSales).toLocaleString()} más para cubrir tus costos operativos totales ($${(fixedCosts + variableCosts).toLocaleString()}).`}
                         </p>
                       </div>
                     </div>
@@ -252,7 +264,7 @@ export default async function AnalyticsPage() {
                         ${grossMargin.toLocaleString()}
                       </p>
                       <p className="text-xs text-neutral-600 mt-1">
-                        Ventas - Costos Variables
+                        Ventas - Materia Prima - Comisiones
                       </p>
                     </div>
                   </div>

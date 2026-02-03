@@ -1,6 +1,6 @@
 "use client";
 
-import { useForm } from "react-hook-form";
+import { useForm, Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { updateIngredient } from "@/app/actions/ingredient-actions";
 import { ingredientSchema } from "@/lib/schemas";
@@ -20,9 +20,9 @@ interface Props {
     id: string;
     name: string;
     unit: string;
-    cost: number | any; // Decimal vs number handling
-    stock: number | any;
-    minStock: number | any;
+    cost: number;
+    stock: number;
+    minStock: number;
   };
   onSuccess?: () => void;
 }
@@ -30,7 +30,9 @@ interface Props {
 export default function EditIngredientForm({ ingredient, onSuccess }: Props) {
   const [loading, setLoading] = useState(false);
   const form = useForm<IngredientFormValues>({
-    resolver: zodResolver(ingredientSchema) as any,
+    resolver: zodResolver(
+      ingredientSchema,
+    ) as unknown as Resolver<IngredientFormValues>,
     defaultValues: {
       name: ingredient.name,
       unit: ingredient.unit,

@@ -27,7 +27,7 @@ export async function getBrainKnowledge() {
     return await prisma.brainKnowledge.findMany({
       orderBy: { createdAt: "desc" },
     });
-  } catch (error) {
+  } catch {
     return [];
   }
 }
@@ -37,7 +37,7 @@ export async function deleteKnowledge(id: string) {
     await prisma.brainKnowledge.delete({ where: { id } });
     revalidatePath("/brain");
     return { success: true };
-  } catch (error) {
+  } catch {
     return { success: false };
   }
 }

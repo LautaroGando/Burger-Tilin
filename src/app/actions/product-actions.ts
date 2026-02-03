@@ -3,23 +3,20 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-
-// Schema definition
-// Schema definition
 import { productSchema } from "@/lib/schemas";
 import { autoTrain } from "./ai-actions";
+import { Product } from "@/lib/types";
 
 export type ProductFormValues = z.infer<typeof productSchema>;
 
 export async function createProduct(data: ProductFormValues) {
   try {
-    const validated = productSchema.parse(data);
+    const { categoryId, ...validated } = productSchema.parse(data);
 
     await prisma.product.create({
       data: {
         ...validated,
-        // Default values for required fields in schema that are not in form yet
-        // In a real scenario we might upload an image
+        category: categoryId ? { connect: { id: categoryId } } : undefined,
       },
     });
 
@@ -38,21 +35,43 @@ export async function createProduct(data: ProductFormValues) {
 
 export async function updateProduct(id: string, data: ProductFormValues) {
   try {
-    const validated = productSchema.parse(data);
-    await prisma.product.update({ where: { id }, data: validated });
+    // Destructure categoryId to handle it as a relation, not a direct field
+    const validatedData = productSchema.parse(data);
+    const { categoryId, ...rest } = validatedData;
+
+    await prisma.product.update({
+      where: { id },
+      data: {
+        ...rest,
+        category: categoryId
+          ? { connect: { id: categoryId } }
+          : { disconnect: true },
+      },
+    });
+
     revalidatePath("/products");
     return { success: true };
   } catch (error) {
     console.error("Failed to update product:", error);
-    return { success: false, error: "Error al actualizar el producto" };
+    // If it's a Prisma error about unknown fields, it's likely the sync issue
+    return {
+      success: false,
+      error:
+        "Error al actualizar el producto. Si el error persiste, reinicia el servidor (npm run dev).",
+    };
   }
 }
 
-export async function getProducts() {
+export async function getProducts(): Promise<{
+  success: boolean;
+  data: Product[];
+  error?: string;
+}> {
   try {
     const products = await prisma.product.findMany({
       orderBy: { createdAt: "desc" },
       include: {
+        category: true,
         recipe: {
           include: {
             ingredient: true,
@@ -64,6 +83,15 @@ export async function getProducts() {
     const serializedProducts = products.map((product) => ({
       ...product,
       price: Number(product.price),
+      pricePedidosYa: product.pricePedidosYa
+        ? Number(product.pricePedidosYa)
+        : null,
+      priceRappi: product.priceRappi ? Number(product.priceRappi) : null,
+      priceMP: product.priceMP ? Number(product.priceMP) : null,
+      promoDiscount: Number(product.promoDiscount || 0),
+      promoDiscountPY: Number(product.promoDiscountPY || 0),
+      promoDiscountRappi: Number(product.promoDiscountRappi || 0),
+      promoDiscountMP: Number(product.promoDiscountMP || 0),
       recipe: product.recipe.map((item) => ({
         ...item,
         quantity: Number(item.quantity),
@@ -76,7 +104,7 @@ export async function getProducts() {
       })),
     }));
 
-    return { success: true, data: serializedProducts };
+    return { success: true, data: serializedProducts as unknown as Product[] };
   } catch (error) {
     console.error("Failed to get products:", error);
     return { success: false, error: "Error al obtener productos", data: [] };

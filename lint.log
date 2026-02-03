@@ -1,0 +1,51 @@
+
+C:\Users\lauti\OneDrive\Escritorio\Proyectos\burger-tilin\src\app\actions\ai-actions.ts
+  30:12  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+  40:12  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\lauti\OneDrive\Escritorio\Proyectos\burger-tilin\src\app\actions\operations-actions.ts
+  51:12  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\lauti\OneDrive\Escritorio\Proyectos\burger-tilin\src\app\products\category-manager.tsx
+  32:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\lauti\OneDrive\Escritorio\Proyectos\burger-tilin\src\app\products\category-manager.tsx:32:5
+  30 |
+  31 |   useEffect(() => {
+> 32 |     load();
+     |     ^^^^ Avoid calling setState() directly within an effect
+  33 |   }, []);
+  34 |
+  35 |   async function handleAdd() {  react-hooks/set-state-in-effect
+
+C:\Users\lauti\OneDrive\Escritorio\Proyectos\burger-tilin\src\app\products\create-product-form.tsx
+  123:14  warning  Compilation Skipped: Use of incompatible library
+
+This API returns functions which cannot be memoized without leading to stale UI. To prevent this, by default React Compiler will skip memoizing this component/hook. However, you may see issues if values from this API are passed to other components/hooks that are memoized.
+
+C:\Users\lauti\OneDrive\Escritorio\Proyectos\burger-tilin\src\app\products\create-product-form.tsx:123:14
+  121 |               </span>
+  122 |             </div>
+> 123 |             {form.watch("isPromo") && (
+      |              ^^^^ React Hook Form's `useForm()` API returns a `watch()` function which cannot be memoized safely.
+  124 |               <div className="flex items-center gap-2 bg-primary/10 px-2 py-1 rounded-lg border border-primary/20">
+  125 |                 <span className="text-[10px] font-bold text-primary">%</span>
+  126 |                 <input  react-hooks/incompatible-library
+
+C:\Users\lauti\OneDrive\Escritorio\Proyectos\burger-tilin\src\hooks\use-realtime.ts
+  1:31  warning  'useRef' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\lauti\OneDrive\Escritorio\Proyectos\burger-tilin\test-gemini.js
+   1:32  error    A `require()` style import is forbidden        @typescript-eslint/no-require-imports
+   2:12  error    A `require()` style import is forbidden        @typescript-eslint/no-require-imports
+   3:14  error    A `require()` style import is forbidden        @typescript-eslint/no-require-imports
+  57:13  warning  'response' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+✖ 10 problems (4 errors, 6 warnings)
+

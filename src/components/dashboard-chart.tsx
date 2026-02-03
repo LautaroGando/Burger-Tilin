@@ -52,7 +52,10 @@ export default function DashboardChart({ data }: DashboardChartProps) {
             fontSize: "12px",
           }}
           itemStyle={{ color: "#fff" }}
-          formatter={(value: any) => [`$${value.toLocaleString()}`, "Ventas"]}
+          formatter={(value: number | undefined) => [
+            `$${(value || 0).toLocaleString()}`,
+            "Ventas",
+          ]}
           labelStyle={{ color: "#aaa", marginBottom: "0.25rem" }}
         />
         <Area

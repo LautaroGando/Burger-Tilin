@@ -35,20 +35,19 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { Sale } from "@/lib/types";
 
 export default function SalesDashboard() {
   const [filter, setFilter] = useState<SalesHistoryFilter>("week");
   const [loading, setLoading] = useState(true);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [selectedSale, setSelectedSale] = useState<any | null>(null);
+  const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [data, setData] = useState<{
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    sales: any[];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    chartData: any[];
+    sales: Sale[];
+    chartData: { name: string; value: number }[];
     totalRevenue: number;
     totalNetRevenue: number;
+    estimatedProfit: number;
     totalCommissions: number;
     totalCount: number;
   } | null>(null);
@@ -63,6 +62,7 @@ export default function SalesDashboard() {
           chartData: res.chartData || [],
           totalRevenue: res.totalRevenue || 0,
           totalNetRevenue: res.totalNetRevenue || 0,
+          estimatedProfit: res.estimatedProfit || 0,
           totalCommissions: res.totalCommissions || 0,
           totalCount: res.totalCount || 0,
         });
@@ -131,38 +131,63 @@ export default function SalesDashboard() {
           className="space-y-8"
         >
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <MotionItem variants={item}>
-              <Card className="glass-card border-white/5 bg-zinc-900/20 p-6 flex items-center justify-between group hover:border-white/10 transition-all">
+              <Card className="glass-card border-white/5 bg-zinc-900/20 p-6 flex items-center justify-between group hover:border-white/10 transition-all h-full">
                 <div className="space-y-1">
-                  <p className="text-xs font-bold text-neutral-500 uppercase tracking-widest">
-                    Ingresos Totales (Bruto)
+                  <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
+                    Ventas Totales
                   </p>
-                  <div className="text-4xl font-black text-white tracking-tight">
-                    ${data.totalRevenue.toLocaleString()}
+                  <div className="text-3xl font-black text-white tracking-tight">
+                    ${Math.round(data.totalRevenue).toLocaleString()}
                   </div>
-                  {data.totalCommissions > 0 && (
-                    <p className="text-[10px] text-red-500 font-bold uppercase tracking-wider">
-                      Comisiones: -${data.totalCommissions.toLocaleString()}
-                    </p>
-                  )}
+                  <p className="text-[10px] text-neutral-500 font-medium italic">
+                    Suma total de tickets
+                  </p>
                 </div>
-                <div className="h-14 w-14 rounded-2xl bg-green-500/10 flex items-center justify-center border border-green-500/20 text-green-500 shadow-[0_0_20px_rgba(34,197,94,0.1)]">
-                  <DollarSign className="h-7 w-7" />
+                <div className="h-12 w-12 rounded-2xl bg-white/5 flex items-center justify-center border border-white/5 text-neutral-400">
+                  <DollarSign className="h-6 w-6" />
                 </div>
               </Card>
             </MotionItem>
+
             <MotionItem variants={item}>
-              <Card className="glass-card border-white/5 bg-zinc-900/20 p-6 flex items-center justify-between group hover:border-white/10 transition-all">
+              <Card className="glass-card border-white/5 bg-zinc-900/20 p-6 flex items-center justify-between group hover:border-white/10 transition-all h-full">
                 <div className="space-y-1">
-                  <p className="text-xs font-bold text-primary uppercase tracking-widest">
-                    Ganancia de Caja (Neto)
+                  <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">
+                    Ingreso Neto (Caja)
+                  </p>
+                  <div className="text-3xl font-black text-blue-400 tracking-tight">
+                    ${Math.round(data.totalNetRevenue).toLocaleString()}
+                  </div>
+                  {data.totalCommissions > 0 ? (
+                    <p className="text-[10px] text-red-500/70 font-bold uppercase tracking-wider">
+                      Apps: -$
+                      {Math.round(data.totalCommissions).toLocaleString()}
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-neutral-500 font-medium italic">
+                      Ventas - Comisiones Apps
+                    </p>
+                  )}
+                </div>
+                <div className="h-12 w-12 rounded-2xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20 text-blue-400">
+                  <CreditCard className="h-6 w-6" />
+                </div>
+              </Card>
+            </MotionItem>
+
+            <MotionItem variants={item}>
+              <Card className="glass-card border-white/10 bg-zinc-900/40 p-6 flex items-center justify-between group hover:border-primary/20 transition-all h-full shadow-lg shadow-yellow-500/5">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold text-primary uppercase tracking-widest">
+                    Ganancia Real Est.
                   </p>
                   <div className="text-4xl font-black text-primary tracking-tight">
-                    ${data.totalNetRevenue.toLocaleString()}
+                    ${Math.round(data.estimatedProfit).toLocaleString()}
                   </div>
                   <p className="text-[10px] text-neutral-500 font-medium italic">
-                    Lo que realmente entra al banco/caja
+                    Ventas - Apps - Materia Prima
                   </p>
                 </div>
                 <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center border border-primary/20 text-primary shadow-[0_0_20px_rgba(252,169,13,0.1)]">
@@ -441,8 +466,7 @@ export default function SalesDashboard() {
                 <p className="text-xs font-bold text-neutral-500 uppercase tracking-widest pl-1">
                   Items Compra
                 </p>
-                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                {selectedSale.items.map((item: any, idx: number) => (
+                {selectedSale.items.map((item, idx: number) => (
                   <div
                     key={idx}
                     className="flex justify-between items-center bg-zinc-900/50 p-3 rounded-xl border border-white/5"

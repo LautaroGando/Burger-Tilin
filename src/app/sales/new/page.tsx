@@ -1,14 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { createSale } from "@/app/actions/sale-actions";
 import { getProducts } from "@/app/actions/product-actions";
-export const dynamic = "force-dynamic";
+import { getCategories } from "@/app/actions/category-actions";
 import { searchCustomers } from "@/app/actions/customer-actions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { MotionDiv, MotionItem } from "@/components/ui/motion";
+
+export const dynamic = "force-dynamic";
 import {
   ShoppingCart,
   Plus,
@@ -33,7 +36,19 @@ type Product = {
   id: string;
   name: string;
   price: number;
+  pricePedidosYa: number | null;
+  priceRappi: number | null;
+  priceMP: number | null;
+  isPromo: boolean;
+  promoDiscount: number | null;
+  isPromoPY: boolean;
+  promoDiscountPY: number | null;
+  isPromoRappi: boolean;
+  promoDiscountRappi: number | null;
+  isPromoMP: boolean;
+  promoDiscountMP: number | null;
   description: string | null;
+  categoryId?: string | null;
 };
 
 type CartItem = {
@@ -41,6 +56,38 @@ type CartItem = {
   productName: string;
   price: number;
   quantity: number;
+};
+
+// Helper to calculate price based on channel and promotions
+const calculateItemPrice = (product: Product, channel: string) => {
+  let basePrice = Number(product.price);
+  let discount = 0;
+  let isPromoActive = false;
+
+  if (channel === "RAPPI") {
+    basePrice = Number(product.priceRappi || product.price);
+    isPromoActive = product.isPromoRappi;
+    discount = Number(product.promoDiscountRappi || 0);
+  } else if (channel === "PEYA") {
+    basePrice = Number(product.pricePedidosYa || product.price);
+    isPromoActive = product.isPromoPY;
+    discount = Number(product.promoDiscountPY || 0);
+  } else if (channel === "MERCADOPAGO") {
+    basePrice = Number(product.priceMP || product.price);
+    isPromoActive = product.isPromoMP;
+    discount = Number(product.promoDiscountMP || 0);
+  } else {
+    // COUNTER, WHATSAPP, etc use direct price
+    basePrice = Number(product.price);
+    isPromoActive = product.isPromo;
+    discount = Number(product.promoDiscount || 0);
+  }
+
+  const finalPrice = isPromoActive
+    ? basePrice * (1 - discount / 100)
+    : basePrice;
+
+  return { basePrice, finalPrice, discount, isPromoActive };
 };
 
 const PaymentMethodButton = ({
@@ -83,6 +130,7 @@ export default function NewSalePage() {
   const [clientName, setClientName] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [channel, setChannel] = useState("COUNTER");
+  const [discount, setDiscount] = useState(0);
   const [showReceipt, setShowReceipt] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(
     null,
@@ -98,26 +146,63 @@ export default function NewSalePage() {
     paymentMethod: string;
   } | null>(null);
 
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>(
+    [],
+  );
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("ALL");
+
   useEffect(() => {
     async function load() {
       setLoading(true);
-      const res = await getProducts();
-      if (res.success && res.data) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setProducts(res.data as any[]);
+      const [prodRes, catRes] = await Promise.all([
+        getProducts(),
+        getCategories(),
+      ]);
+
+      if (prodRes.success && prodRes.data) {
+        setProducts(prodRes.data as Product[]);
+      }
+      if (catRes.success && catRes.data) {
+        setCategories(catRes.data);
       }
       setLoading(false);
     }
     load();
   }, []);
 
+  // When channel changes, update prices in the cart if they exist for the new channel
+  useEffect(() => {
+    if (products.length === 0) return;
+
+    setCart((prev) =>
+      prev.map((item) => {
+        const product = products.find((p) => p.id === item.productId);
+        if (!product) return item;
+
+        const { finalPrice } = calculateItemPrice(product, channel);
+        return { ...item, price: finalPrice };
+      }),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channel, products.length]);
+
+  const filteredProducts = useMemo(() => {
+    return products.filter((p) => {
+      if (selectedCategoryId === "ALL") return true;
+      if (selectedCategoryId === "NONE") return !p.categoryId;
+      return p.categoryId === selectedCategoryId;
+    });
+  }, [products, selectedCategoryId]);
+
   const addToCart = (product: Product) => {
     setCart((prev) => {
       const existing = prev.find((item) => item.productId === product.id);
+      const { finalPrice } = calculateItemPrice(product, channel);
+
       if (existing) {
         return prev.map((item) =>
           item.productId === product.id
-            ? { ...item, quantity: item.quantity + 1 }
+            ? { ...item, quantity: item.quantity + 1, price: finalPrice }
             : item,
         );
       }
@@ -126,7 +211,7 @@ export default function NewSalePage() {
         {
           productId: product.id,
           productName: product.name,
-          price: Number(product.price),
+          price: finalPrice,
           quantity: 1,
         },
       ];
@@ -146,7 +231,11 @@ export default function NewSalePage() {
     );
   };
 
-  const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const subtotal = cart.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0,
+  );
+  const total = Math.max(0, subtotal - discount);
 
   const handleCheckout = async () => {
     if (cart.length === 0) return;
@@ -159,10 +248,11 @@ export default function NewSalePage() {
         unitPrice: item.price,
       })),
       paymentMethod,
-      total,
+      total: total, // Correct: send net total after all discounts to the server
+      discount: discount, // This is the manual discount
       clientName,
       channel,
-      customerId: selectedCustomerId || undefined, // Send ID if selected
+      customerId: selectedCustomerId || undefined,
     });
 
     if (res.success) {
@@ -180,6 +270,7 @@ export default function NewSalePage() {
       setSelectedCustomerId(null);
       setPaymentMethod("CASH");
       setChannel("COUNTER");
+      setDiscount(0);
     } else {
       toast.error(
         res.error || "Error al registrar venta (Posible falta de stock)",
@@ -215,52 +306,129 @@ export default function NewSalePage() {
             </div>
           </MotionItem>
 
-          {loading ? (
-            <div className="flex justify-center py-32 text-neutral-500">
-              <Loader2 className="animate-spin h-10 w-10" />
-            </div>
-          ) : (
-            <MotionDiv
-              className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-3 gap-3 md:gap-4"
-              initial="hidden"
-              animate="show"
-              variants={{
-                show: { transition: { staggerChildren: 0.05 } },
-              }}
-            >
-              {products.map((product) => (
-                <MotionItem
-                  key={product.id}
-                  variants={{
-                    hidden: { opacity: 0, y: 20 },
-                    show: { opacity: 1, y: 0 },
-                  }}
+          {/* Category Tabs */}
+          {!loading && categories.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide no-scrollbar">
+              <button
+                onClick={() => setSelectedCategoryId("ALL")}
+                className={`flex-none px-6 py-2.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all border ${
+                  selectedCategoryId === "ALL"
+                    ? "bg-primary text-black border-primary shadow-lg shadow-yellow-500/10"
+                    : "bg-white/5 text-neutral-500 border-white/5 hover:bg-white/10 hover:border-white/10"
+                }`}
+              >
+                Todos
+              </button>
+              {categories.map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedCategoryId(cat.id)}
+                  className={`flex-none px-6 py-2.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all border ${
+                    selectedCategoryId === cat.id
+                      ? "bg-primary text-black border-primary shadow-lg shadow-yellow-500/10"
+                      : "bg-white/5 text-neutral-500 border-white/5 hover:bg-white/10 hover:border-white/10"
+                  }`}
                 >
-                  <Card
-                    onClick={() => addToCart(product)}
-                    className="glass-card cursor-pointer hover:bg-zinc-900/40 active:scale-95 transition-all text-left border-white/5 bg-zinc-900/20 h-full flex flex-col justify-between p-5 group hover:border-white/10"
-                  >
-                    <div>
-                      <h3 className="font-bold text-white text-lg leading-tight mb-2 group-hover:text-primary transition-colors">
-                        {product.name}
-                      </h3>
-                      <p className="text-xs text-neutral-500 line-clamp-2 h-8 font-medium">
-                        {product.description || "Sin descripción"}
-                      </p>
-                    </div>
-                    <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/5 border-dashed">
-                      <span className="text-2xl font-black text-white tracking-tight">
-                        ${Number(product.price).toFixed(2)}
-                      </span>
-                      <div className="h-10 w-10 rounded-full bg-white/5 flex items-center justify-center text-neutral-400 group-hover:bg-primary group-hover:text-black transition-all shadow-lg">
-                        <Plus className="h-5 w-5" />
-                      </div>
-                    </div>
-                  </Card>
-                </MotionItem>
+                  {cat.name}
+                </button>
               ))}
-            </MotionDiv>
+              <button
+                onClick={() => setSelectedCategoryId("NONE")}
+                className={`flex-none px-6 py-2.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all border ${
+                  selectedCategoryId === "NONE"
+                    ? "bg-primary text-black border-primary shadow-lg shadow-yellow-500/10"
+                    : "bg-white/5 text-neutral-500 border-white/5 hover:bg-white/10 hover:border-white/10"
+                }`}
+              >
+                Otros
+              </button>
+            </div>
           )}
+
+          <AnimatePresence mode="popLayout">
+            {loading ? (
+              <motion.div
+                key="loading"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="flex justify-center py-32 text-neutral-500"
+              >
+                <Loader2 className="animate-spin h-10 w-10" />
+              </motion.div>
+            ) : (
+              <MotionDiv
+                key={selectedCategoryId}
+                className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-3 gap-3 md:gap-4"
+                initial="hidden"
+                animate="show"
+                variants={{
+                  show: { transition: { staggerChildren: 0.05 } },
+                }}
+              >
+                {filteredProducts.map((product) => {
+                  const { basePrice, finalPrice, discount, isPromoActive } =
+                    calculateItemPrice(product, channel);
+
+                  return (
+                    <MotionItem
+                      key={product.id}
+                      layout
+                      variants={{
+                        hidden: { opacity: 0, scale: 0.9, y: 20 },
+                        show: {
+                          opacity: 1,
+                          scale: 1,
+                          y: 0,
+                          transition: {
+                            type: "spring",
+                            stiffness: 300,
+                            damping: 25,
+                          },
+                        },
+                      }}
+                    >
+                      <Card
+                        onClick={() => addToCart(product)}
+                        className="glass-card cursor-pointer hover:bg-zinc-900/40 active:scale-95 transition-all text-left border-white/5 bg-zinc-900/20 h-full flex flex-col justify-between p-5 group hover:border-white/10"
+                      >
+                        <div>
+                          <div className="flex items-start justify-between mb-2">
+                            <h3 className="font-bold text-white text-lg leading-tight group-hover:text-primary transition-colors flex-1 truncate">
+                              {product.name}
+                            </h3>
+                            {isPromoActive && (
+                              <span className="bg-primary/10 text-primary text-[8px] font-black px-1.5 py-0.5 rounded border border-primary/20 shrink-0 ml-2 animate-pulse uppercase">
+                                {discount}% OFF
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-neutral-500 line-clamp-2 h-8 font-medium">
+                            {product.description || "Sin descripción"}
+                          </p>
+                        </div>
+                        <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/5 border-dashed">
+                          <div className="flex flex-col">
+                            <span className="text-2xl font-black text-white tracking-tight leading-none">
+                              ${Math.round(finalPrice).toLocaleString()}
+                            </span>
+                            {isPromoActive && (
+                              <span className="text-[10px] text-neutral-600 line-through font-bold mt-1">
+                                ${Math.round(basePrice).toLocaleString()}
+                              </span>
+                            )}
+                          </div>
+                          <div className="h-10 w-10 rounded-full bg-white/5 flex items-center justify-center text-neutral-400 group-hover:bg-primary group-hover:text-black transition-all shadow-lg">
+                            <Plus className="h-5 w-5" />
+                          </div>
+                        </div>
+                      </Card>
+                    </MotionItem>
+                  );
+                })}
+              </MotionDiv>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Cart (Right) */}
@@ -413,13 +581,13 @@ export default function NewSalePage() {
                       { id: "COUNTER", label: "Mostrador" },
                       { id: "RAPPI", label: "Rappi" },
                       { id: "PEYA", label: "Peya" },
-                      { id: "WHATSAPP", label: "WhatsApp" },
+                      { id: "WHATSAPP", label: "WApp" },
                       { id: "MERCADOPAGO", label: "MP Delivery" },
                     ].map((c) => (
                       <button
                         key={c.id}
                         onClick={() => setChannel(c.id)}
-                        className={`flex-1 min-w-[80px] py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-wider border transition-all ${
+                        className={`flex-1 min-w-[70px] py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-wider border transition-all ${
                           channel === c.id
                             ? "bg-primary text-black border-primary shadow-lg shadow-yellow-500/10"
                             : "bg-transparent text-neutral-500 border-white/5 hover:bg-white/5"
@@ -430,13 +598,40 @@ export default function NewSalePage() {
                     ))}
                   </div>
                 </div>
+
+                <div className="space-y-2">
+                  <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest flex justify-between items-center">
+                    Descuento Manual
+                    {discount > 0 && (
+                      <span className="text-primary">-${discount}</span>
+                    )}
+                  </p>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-neutral-500 text-sm">
+                      $
+                    </span>
+                    <Input
+                      type="number"
+                      placeholder="0"
+                      value={discount || ""}
+                      onChange={(e) => setDiscount(Number(e.target.value))}
+                      className="glass-input pl-6 h-10 text-sm bg-black/40 border-white/5 focus:border-primary/50 rounded-xl"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-2 pt-4 border-t border-white/5 border-dashed">
                 <div className="flex justify-between text-neutral-400 text-sm font-medium">
                   <span>Subtotal</span>
-                  <span>${total.toFixed(2)}</span>
+                  <span>${subtotal.toFixed(2)}</span>
                 </div>
+                {discount > 0 && (
+                  <div className="flex justify-between text-primary text-sm font-bold">
+                    <span>Descuento</span>
+                    <span>-${discount.toFixed(2)}</span>
+                  </div>
+                )}
                 {["RAPPI", "PEYA", "MERCADOPAGO"].includes(channel) && (
                   <div className="flex justify-between text-red-400/80 text-[11px] font-bold uppercase tracking-wider">
                     <span className="flex items-center gap-1">

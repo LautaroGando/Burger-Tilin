@@ -46,13 +46,11 @@ export async function getKitchenOverview(): Promise<{
     });
 
     // Cleaner mapping with product lookup
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const cleanerOrders: KitchenOrder[] = activeOrders.map((o: any) => ({
+    const cleanerOrders: KitchenOrder[] = activeOrders.map((o) => ({
       id: o.id,
       clientName: o.clientName || "Mostrador",
       status: o.status,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      items: o.items.map((i: any) => ({
+      items: o.items.map((i) => ({
         productName:
           products.find((p) => p.id === i.productId)?.name || "Desconocido",
         quantity: i.quantity,
