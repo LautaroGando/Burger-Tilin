@@ -38,7 +38,10 @@ export async function createSale(data: CreateSaleValues) {
           discount: validated.discount,
           paymentMethod: validated.paymentMethod,
           channel: validated.channel || "COUNTER",
-          status: "PENDING", // Start as PENDING for Kitchen
+          status:
+            validated.channel === "COUNTER" || validated.channel === "WHATSAPP"
+              ? "COMPLETED"
+              : "PENDING", // PENDING for Delivery apps until confirmed? Or everything COMPLETED usually? For now let's auto-complete direct sales.
           clientName: validated.clientName,
           customerId: validated.customerId, // Link to registered customer
           items: {
@@ -92,11 +95,11 @@ export async function createSale(data: CreateSaleValues) {
       "sales_update",
     );
 
-    revalidatePath("/");
-    revalidatePath("/products");
-    revalidatePath("/ingredients");
-    revalidatePath("/customers"); // Updated to refresh customer list
-    revalidatePath("/custom-metrics");
+    revalidatePath("/admin");
+    revalidatePath("/admin/products");
+    revalidatePath("/admin/ingredients");
+    revalidatePath("/admin/customers"); // Updated to refresh customer list
+    revalidatePath("/admin/custom-metrics");
 
     return { success: true };
   } catch (error) {
@@ -175,11 +178,19 @@ export async function getDashboardMetrics() {
     let totalCost = 0;
     let totalCommissions = 0;
 
+    // Fetch platform commissions via raw SQL to avoid stale client issues
+    const platformConfigs = await prisma.$queryRawUnsafe<any[]>(
+      'SELECT name, commission FROM "PlatformConfig"',
+    );
+    const commissionMap: Record<string, number> = {};
+    platformConfigs.forEach((c) => {
+      commissionMap[c.name] = (c.commission || 0) / 100;
+    });
+
     todaysSales.forEach((sale) => {
-      // Calculate Commission
-      if (["RAPPI", "PEYA", "MERCADOPAGO"].includes(sale.channel)) {
-        totalCommissions += Number(sale.total) * 0.35;
-      }
+      // Calculate Commission dynamically
+      const commissionRate = commissionMap[sale.channel] ?? 0;
+      totalCommissions += Number(sale.total) * commissionRate;
 
       sale.items.forEach((item) => {
         const productCost = item.product.recipe.reduce((rSum, rItem) => {
@@ -271,10 +282,10 @@ export async function deleteSale(id: string) {
       });
     });
 
-    revalidatePath("/");
-    revalidatePath("/products");
-    revalidatePath("/ingredients");
-    revalidatePath("/customers");
+    revalidatePath("/admin");
+    revalidatePath("/admin/products");
+    revalidatePath("/admin/ingredients");
+    revalidatePath("/admin/customers");
     return { success: true };
   } catch (error) {
     console.error("Delete Sale Error:", error);

@@ -11,22 +11,30 @@ export type ProductFormValues = z.infer<typeof productSchema>;
 
 export async function createProduct(data: ProductFormValues) {
   try {
-    const { categoryId, ...validated } = productSchema.parse(data);
+    const { categoryId, showPublic, ...validated } = productSchema.parse(data);
 
-    await prisma.product.create({
+    const created = await prisma.product.create({
       data: {
         ...validated,
         category: categoryId ? { connect: { id: categoryId } } : undefined,
       },
+      select: { id: true },
     });
+
+    // Update showPublic via raw SQL
+    await prisma.$executeRawUnsafe(
+      'UPDATE "Product" SET "showPublic" = $1 WHERE id = $2',
+      data.showPublic ?? true,
+      created.id,
+    );
 
     await autoTrain(
       `Nuevo producto agregado al menú: ${validated.name} con un precio de $${validated.price}.`,
       "product_update",
     );
 
-    revalidatePath("/products");
-    return { success: true };
+    revalidatePath("/admin/products");
+    return { success: true, id: created.id };
   } catch (error) {
     console.error("Failed to create product:", error);
     return { success: false, error: "Error al crear el producto" };
@@ -37,7 +45,7 @@ export async function updateProduct(id: string, data: ProductFormValues) {
   try {
     // Destructure categoryId to handle it as a relation, not a direct field
     const validatedData = productSchema.parse(data);
-    const { categoryId, ...rest } = validatedData;
+    const { categoryId, showPublic, ...rest } = validatedData;
 
     await prisma.product.update({
       where: { id },
@@ -49,7 +57,13 @@ export async function updateProduct(id: string, data: ProductFormValues) {
       },
     });
 
-    revalidatePath("/products");
+    await prisma.$executeRawUnsafe(
+      'UPDATE "Product" SET "showPublic" = $1 WHERE id = $2',
+      data.showPublic ?? true,
+      id,
+    );
+
+    revalidatePath("/admin/products");
     return { success: true };
   } catch (error) {
     console.error("Failed to update product:", error);
@@ -68,41 +82,64 @@ export async function getProducts(): Promise<{
   error?: string;
 }> {
   try {
-    const products = await prisma.product.findMany({
-      orderBy: { createdAt: "desc" },
-      include: {
-        category: true,
-        recipe: {
-          include: {
-            ingredient: true,
-          },
-        },
-      },
+    const products = await prisma.$queryRawUnsafe<any[]>(`
+      SELECT 
+        p.*,
+        c.name as "categoryName",
+        c.id as "categoryId"
+      FROM "Product" p
+      LEFT JOIN "Category" c ON p."categoryId" = c.id
+      ORDER BY p."createdAt" DESC
+    `);
+
+    // Fetch recipes separately as they are complex to join raw and serialize
+    const recipes = await prisma.recipeItem.findMany({
+      include: { ingredient: true },
     });
 
-    const serializedProducts = products.map((product) => ({
-      ...product,
-      price: Number(product.price),
-      pricePedidosYa: product.pricePedidosYa
-        ? Number(product.pricePedidosYa)
-        : null,
-      priceRappi: product.priceRappi ? Number(product.priceRappi) : null,
-      priceMP: product.priceMP ? Number(product.priceMP) : null,
-      promoDiscount: Number(product.promoDiscount || 0),
-      promoDiscountPY: Number(product.promoDiscountPY || 0),
-      promoDiscountRappi: Number(product.promoDiscountRappi || 0),
-      promoDiscountMP: Number(product.promoDiscountMP || 0),
-      recipe: product.recipe.map((item) => ({
-        ...item,
-        quantity: Number(item.quantity),
-        ingredient: {
-          ...item.ingredient,
-          cost: Number(item.ingredient.cost),
-          stock: Number(item.ingredient.stock),
-          minStock: Number(item.ingredient.minStock),
-        },
-      })),
-    }));
+    // Fetch allowed extras mapping
+    const extrasMapping = await prisma.$queryRawUnsafe<any[]>(
+      'SELECT * FROM "ProductExtra"',
+    );
+
+    const serializedProducts = products.map((product) => {
+      const productRecipes = recipes.filter((r) => r.productId === product.id);
+      const productExtras = extrasMapping.filter(
+        (ex) => ex.mainProductId === product.id,
+      );
+
+      return {
+        ...product,
+        price: Number(product.price),
+        pricePedidosYa: product.pricePedidosYa
+          ? Number(product.pricePedidosYa)
+          : null,
+        priceRappi: product.priceRappi ? Number(product.priceRappi) : null,
+        priceMP: product.priceMP ? Number(product.priceMP) : null,
+        promoDiscount: Number(product.promoDiscount || 0),
+        promoDiscountPY: Number(product.promoDiscountPY || 0),
+        promoDiscountRappi: Number(product.promoDiscountRappi || 0),
+        promoDiscountMP: Number(product.promoDiscountMP || 0),
+        showPublic: !!product.showPublic,
+        category: product.categoryId
+          ? {
+              id: product.categoryId,
+              name: product.categoryName,
+            }
+          : null,
+        recipe: productRecipes.map((item) => ({
+          ...item,
+          quantity: Number(item.quantity),
+          ingredient: {
+            ...item.ingredient,
+            cost: Number(item.ingredient.cost),
+            stock: Number(item.ingredient.stock),
+            minStock: Number(item.ingredient.minStock),
+          },
+        })),
+        allowedExtras: productExtras,
+      };
+    });
 
     return { success: true, data: serializedProducts as unknown as Product[] };
   } catch (error) {
@@ -133,10 +170,36 @@ export async function deleteProduct(id: string) {
       await tx.product.delete({ where: { id } });
     });
 
-    revalidatePath("/products");
     return { success: true };
   } catch (error) {
     console.error("Delete Product Error:", error);
     return { success: false, error: "Error al eliminar producto" };
+  }
+}
+
+export async function updateProductExtras(
+  mainProductId: string,
+  extraProductIds: string[],
+) {
+  try {
+    await prisma.$executeRawUnsafe(
+      'DELETE FROM "ProductExtra" WHERE "mainProductId" = $1',
+      mainProductId,
+    );
+
+    for (const extraId of extraProductIds) {
+      await prisma.$executeRawUnsafe(
+        'INSERT INTO "ProductExtra" (id, "mainProductId", "extraProductId") VALUES ($1, $2, $3)',
+        crypto.randomUUID(),
+        mainProductId,
+        extraId,
+      );
+    }
+
+    revalidatePath("/admin/products");
+    return { success: true };
+  } catch (error) {
+    console.error("Update Extras Error:", error);
+    return { success: false, error: "Error al actualizar los extras" };
   }
 }

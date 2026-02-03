@@ -2,6 +2,12 @@
 
 import { prisma } from "@/lib/prisma";
 import { Sale } from "@/lib/types";
+import { getOptimalPurchaseList } from "./ingredient-actions";
+
+interface PlatformConfigResult {
+  name: string;
+  commission: number;
+}
 
 export type BreakEvenData = {
   fixedCosts: number;
@@ -12,6 +18,7 @@ export type BreakEvenData = {
   breakEvenPoint: number; // Fixed / Ratio
   progress: number; // Sales / BreakEven * 100
   hasActivity: boolean;
+  wastage: number;
 };
 
 export async function getBreakEvenAnalysis(): Promise<{
@@ -54,6 +61,15 @@ export async function getBreakEvenAnalysis(): Promise<{
       },
     });
 
+    // Get platform commissions via raw SQL to avoid stale client issues
+    const platformConfigs = await prisma.$queryRawUnsafe<
+      PlatformConfigResult[]
+    >('SELECT name, commission FROM "PlatformConfig"');
+    const commissionMap: Record<string, number> = {};
+    platformConfigs.forEach((c) => {
+      commissionMap[c.name] = (c.commission || 0) / 100;
+    });
+
     const totalSales = sales.reduce((sum, s) => sum + Number(s.total), 0);
 
     // Calculate Variable Costs (Ingredients used in these sales)
@@ -81,10 +97,9 @@ export async function getBreakEvenAnalysis(): Promise<{
     });
 
     sales.forEach((sale) => {
-      // Calculate Commission
-      if (["RAPPI", "PEYA", "MERCADOPAGO"].includes(sale.channel)) {
-        totalCommissions += Number(sale.total) * 0.35;
-      }
+      // Calculate dynamic Commission
+      const commRate = commissionMap[sale.channel] ?? 0;
+      totalCommissions += Number(sale.total) * commRate;
 
       sale.items.forEach((item) => {
         const cost = productCosts[item.productId] || 0;
@@ -95,9 +110,20 @@ export async function getBreakEvenAnalysis(): Promise<{
     // Add variable expenses from DB (not related to recipes)
     variableCosts += extraVariableCosts;
 
+    // 2.5. Get Wastage
+    const wastageLogs = await prisma.wasteLog.findMany({
+      where: {
+        date: { gte: firstDay, lte: lastDay },
+      },
+    });
+    const totalWastage = wastageLogs.reduce(
+      (sum, w) => sum + Number(w.cost),
+      0,
+    );
+
     // 3. Calculate Break-even
     const netSales = totalSales - totalCommissions;
-    const grossMargin = netSales - variableCosts;
+    const grossMargin = netSales - variableCosts - totalWastage;
     const contributionMarginRatio = netSales > 0 ? grossMargin / netSales : 0;
 
     // 3. Calculate Break-even (Cost Recovery Model)
@@ -118,7 +144,12 @@ export async function getBreakEvenAnalysis(): Promise<{
         contributionMarginRatio,
         breakEvenPoint: netSales === 0 && fixedCosts === 0 ? 0 : breakEvenPoint,
         progress: netSales === 0 && fixedCosts === 0 ? 0 : progress,
-        hasActivity: netSales > 0 || fixedCosts > 0 || variableCosts > 0,
+        hasActivity:
+          netSales > 0 ||
+          fixedCosts > 0 ||
+          variableCosts > 0 ||
+          totalWastage > 0,
+        wastage: totalWastage,
       },
     };
   } catch (error) {
@@ -138,6 +169,7 @@ export async function getSalesHistory(filter: SalesHistoryFilter): Promise<{
   estimatedProfit: number;
   totalCommissions: number;
   totalCount: number;
+  commMap?: Record<string, number>;
   error?: string;
 }> {
   try {
@@ -228,13 +260,20 @@ export async function getSalesHistory(filter: SalesHistoryFilter): Promise<{
       );
     });
 
+    const platformConfigs = await prisma.$queryRawUnsafe<
+      PlatformConfigResult[]
+    >('SELECT name, commission FROM "PlatformConfig"');
+    const commMap: Record<string, number> = {};
+    platformConfigs.forEach((c) => {
+      commMap[c.name] = (c.commission || 0) / 100;
+    });
+
     sales.forEach((s) => {
       const saleNet = Number(s.total);
       totalRevenue += saleNet;
 
-      if (["RAPPI", "PEYA", "MERCADOPAGO"].includes(s.channel)) {
-        totalCommissions += saleNet * 0.35;
-      }
+      const commRate = commMap[s.channel] ?? 0;
+      totalCommissions += saleNet * commRate;
 
       s.items.forEach((item) => {
         totalCosts += (productCostMap[item.productId] || 0) * item.quantity;
@@ -286,6 +325,7 @@ export async function getSalesHistory(filter: SalesHistoryFilter): Promise<{
       estimatedProfit,
       totalCommissions,
       totalCount,
+      commMap,
     };
   } catch (error) {
     console.error("Sales History Error:", error);
@@ -315,8 +355,11 @@ export type AdvancedAnalytics = {
   healthScore: number;
   peakHours: { hour: number; count: number }[];
   topProducts: ProductPerformance[];
+  topIngredients: { name: string; stockValue: number }[];
+  salesProjection: number;
   customerRecurrence: number;
   totalSales: number;
+  totalWastage: number;
 };
 
 export async function getAdvancedAnalytics(): Promise<{
@@ -367,6 +410,14 @@ export async function getAdvancedAnalytics(): Promise<{
     let totalGrossRevenue = 0;
     let totalProfit = 0;
 
+    const platformConfigs = await prisma.$queryRawUnsafe<
+      PlatformConfigResult[]
+    >('SELECT name, commission FROM "PlatformConfig"');
+    const commMap: Record<string, number> = {};
+    platformConfigs.forEach((c) => {
+      commMap[c.name] = (c.commission || 0) / 100;
+    });
+
     sales.forEach((sale) => {
       // Peak Hours
       const hour = new Date(sale.date).getHours();
@@ -375,10 +426,8 @@ export async function getAdvancedAnalytics(): Promise<{
       // Revenue & Commission
       const saleTotal = Number(sale.total);
 
-      let saleCommission = 0;
-      if (["RAPPI", "PEYA", "MERCADOPAGO"].includes(sale.channel)) {
-        saleCommission = saleTotal * 0.35;
-      }
+      const commRate = commMap[sale.channel] ?? 0;
+      const saleCommission = saleTotal * commRate;
 
       totalGrossRevenue += saleTotal;
 
@@ -459,12 +508,75 @@ export async function getAdvancedAnalytics(): Promise<{
       healthScore = 0;
     }
 
-    // 6. Customer Recurrence
-    // We already have 30-day sales in 'sales' array.
-    // Count total sales and sales with customerId
-    const recurrenceCount = sales.filter((s) => s.customerId).length;
+    // 6. Improved Customer Recurrence Calculation
+    // We group sales by identifier (customerId or normalized clientName)
+    // We exclude generic names usually used for anonymous sales
+    const GENERIC_NAMES = [
+      "mostrador",
+      "whatsapp",
+      "pedidosya",
+      "rappi",
+      "cliente",
+      "desconocido",
+      "anonimo",
+      "pya",
+    ];
+
+    const customerSalesMap: Record<string, number> = {};
+
+    sales.forEach((sale) => {
+      let identifier: string | null = null;
+
+      if (sale.customerId) {
+        identifier = `id_${sale.customerId}`;
+      } else if (sale.clientName) {
+        const name = sale.clientName.trim().toLowerCase();
+        // Only use name as identifier if it's not empty and not generic
+        if (name && !GENERIC_NAMES.includes(name)) {
+          identifier = `name_${name}`;
+        }
+      }
+
+      if (identifier) {
+        customerSalesMap[identifier] = (customerSalesMap[identifier] || 0) + 1;
+      }
+    });
+
+    // The recurrence metric here represents:
+    // "What % of orders in the last 30 days are from repeat customers?"
+    const repeatOrdersCount = Object.values(customerSalesMap).reduce(
+      (sum, count) => {
+        if (count > 1) return sum + count;
+        return sum;
+      },
+      0,
+    );
+
     const customerRecurrence =
-      sales.length > 0 ? (recurrenceCount / sales.length) * 100 : 0;
+      sales.length > 0 ? (repeatOrdersCount / sales.length) * 100 : 0;
+
+    // 7. Wastage
+    const wastageLogs30 = await prisma.wasteLog.findMany({
+      where: { date: { gte: thirtyDaysAgo } },
+    });
+    const totalWastage = wastageLogs30.reduce(
+      (sum, w) => sum + Number(w.cost),
+      0,
+    );
+
+    // 8. Top Valuable Ingredients
+    const dbIngredients = await prisma.ingredient.findMany();
+    const topIngredients = dbIngredients
+      .map((ing) => ({
+        name: ing.name,
+        stockValue: Number(ing.cost) * Number(ing.stock),
+      }))
+      .sort((a, b) => b.stockValue - a.stockValue)
+      .slice(0, 5);
+
+    // 9. Sales Projection (Revenue Base)
+    // We project the next 30 days based on the last 30 days performance
+    const salesProjection = totalGrossRevenue;
 
     return {
       success: true,
@@ -472,12 +584,169 @@ export async function getAdvancedAnalytics(): Promise<{
         healthScore,
         peakHours,
         topProducts,
+        topIngredients,
+        salesProjection,
         customerRecurrence,
         totalSales: sales.length,
+        totalWastage,
       },
     };
   } catch (error) {
     console.error("Advanced Analytics Error:", error);
     return { success: false };
+  }
+}
+
+export async function getRealTimeProfitability() {
+  try {
+    const products = await prisma.product.findMany({
+      include: {
+        category: true,
+        recipe: {
+          include: { ingredient: true },
+        },
+      },
+    });
+
+    const platformConfigs = await prisma.$queryRawUnsafe<
+      PlatformConfigResult[]
+    >('SELECT name, commission FROM "PlatformConfig"');
+    const commMap: Record<string, number> = {};
+    platformConfigs.forEach((c) => {
+      commMap[c.name] = (c.commission || 0) / 100;
+    });
+
+    const profitability = products
+      .map((p) => {
+        const cost = p.recipe.reduce(
+          (sum, item) =>
+            sum + Number(item.quantity) * Number(item.ingredient.cost),
+          0,
+        );
+
+        const price = Number(p.price);
+        const margin = price > 0 ? ((price - cost) / price) * 100 : 0;
+
+        // Calculate platform margins too
+        const pYaPrice = Number(p.pricePedidosYa) || price;
+        const rappiPrice = Number(p.priceRappi) || price;
+        const mpPrice = Number(p.priceMP) || price;
+
+        const pYaComm = commMap["PEYA"] ?? 0;
+        const rappiComm = commMap["RAPPI"] ?? 0;
+        const mpComm = commMap["MERCADOPAGO"] ?? 0;
+
+        const pYaMargin =
+          pYaPrice > 0
+            ? ((pYaPrice * (1 - pYaComm) - cost) / (pYaPrice * (1 - pYaComm))) *
+              100
+            : 0;
+        const rappiMargin =
+          rappiPrice > 0
+            ? ((rappiPrice * (1 - rappiComm) - cost) /
+                (rappiPrice * (1 - rappiComm))) *
+              100
+            : 0;
+        const mpMargin =
+          mpPrice > 0
+            ? ((mpPrice * (1 - mpComm) - cost) / (mpPrice * (1 - mpComm))) * 100
+            : 0;
+
+        return {
+          id: p.id,
+          name: p.name,
+          category: p.category?.name || "Sin categoría",
+          cost,
+          price,
+          margin,
+          pYaMargin,
+          rappiMargin,
+          mpMargin,
+          isCritical:
+            margin < 25 || pYaMargin < 15 || rappiMargin < 15 || mpMargin < 15,
+        };
+      })
+      .sort((a, b) => a.margin - b.margin);
+
+    return { success: true, data: profitability };
+  } catch (error) {
+    console.error(error);
+    return { success: false, error: "Error calculando rentabilidad" };
+  }
+}
+
+export async function getCashFlowForecast() {
+  try {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    // 1. Average Daily Income (Net)
+    const sales = await prisma.sale.findMany({
+      where: { date: { gte: thirtyDaysAgo }, status: "COMPLETED" },
+    });
+
+    const platformConfigs = await prisma.$queryRawUnsafe<
+      PlatformConfigResult[]
+    >('SELECT name, commission FROM "PlatformConfig"');
+    const commMap: Record<string, number> = {};
+    platformConfigs.forEach((c) => {
+      commMap[c.name] = (c.commission || 0) / 100;
+    });
+
+    const totalNetRevenue = sales.reduce((sum, s) => {
+      const total = Number(s.total);
+      const commissionRate = commMap[s.channel] ?? 0;
+      const commission = total * commissionRate;
+      return sum + (total - commission);
+    }, 0);
+
+    const avgDailyIncome = totalNetRevenue / 30;
+
+    // 2. Fixed Expenses (Daily)
+    const fixedExpenses = await prisma.expense.findMany({
+      where: { isFixed: true },
+    });
+    const monthlyFixed = fixedExpenses.reduce(
+      (sum, e) => sum + Number(e.amount),
+      0,
+    );
+    const dailyFixed = monthlyFixed / 30;
+
+    // 3. Expected Procurement (from Smart Purchase)
+    const purchaseRes = await getOptimalPurchaseList();
+    let expectedProcurementCost = 0;
+    if (purchaseRes.success && purchaseRes.data) {
+      // Estimate cost based on current ingredient costs
+      const ingredients = await prisma.ingredient.findMany();
+      purchaseRes.data.forEach((s) => {
+        const ing = ingredients.find((i) => i.id === s.id);
+        if (ing) {
+          expectedProcurementCost += s.suggestedPurchase * Number(ing.cost);
+        }
+      });
+    }
+
+    // 4. Forecast for next 7 days
+    const days = 7;
+    const projectedIncome = avgDailyIncome * days;
+    const projectedFixedExpenses = dailyFixed * days;
+    const netCashFlow =
+      projectedIncome - projectedFixedExpenses - expectedProcurementCost;
+
+    return {
+      success: true,
+      data: {
+        avgDailyIncome,
+        dailyFixed,
+        expectedProcurementCost,
+        projectedIncome,
+        projectedFixedExpenses,
+        netCashFlow,
+        days,
+      },
+    };
+  } catch (error) {
+    console.error(error);
+    return { success: false, error: "Error proyectando flujo de caja" };
   }
 }

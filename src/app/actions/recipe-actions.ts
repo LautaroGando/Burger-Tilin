@@ -24,7 +24,7 @@ export async function addIngredientToRecipe(data: RecipeItemFormValues) {
       },
     });
 
-    revalidatePath("/products");
+    revalidatePath("/admin/products");
     return { success: true };
   } catch {
     return { success: false, error: "Error agregando ingrediente" };
@@ -37,7 +37,7 @@ export async function removeIngredientFromRecipe(id: string) {
       where: { id },
     });
 
-    revalidatePath("/products");
+    revalidatePath("/admin/products");
     return { success: true };
   } catch {
     return { success: false, error: "Error eliminando ingrediente" };

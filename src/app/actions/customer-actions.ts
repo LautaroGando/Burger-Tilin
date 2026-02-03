@@ -25,7 +25,7 @@ export async function createCustomer(data: CreateCustomerValues) {
       },
     });
 
-    revalidatePath("/customers");
+    revalidatePath("/admin/customers");
     return { success: true };
   } catch (error) {
     console.error("Create Customer Error:", error);

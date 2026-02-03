@@ -32,8 +32,8 @@ export async function logWaste(data: {
       });
     }
 
-    revalidatePath("/operations");
-    revalidatePath("/ingredients");
+    revalidatePath("/admin/operations");
+    revalidatePath("/admin/ingredients");
     return { success: true };
   } catch {
     return { success: false, error: "Failed to log waste" };
@@ -63,8 +63,8 @@ export async function refundSale(
       where: { id: saleId },
       data: { status: "REFUNDED" },
     });
-    revalidatePath("/operations");
-    revalidatePath("/sales");
+    revalidatePath("/admin/operations");
+    revalidatePath("/admin/sales");
     return { success: true };
   } catch {
     return { success: false, error: "Failed to refund sale" };

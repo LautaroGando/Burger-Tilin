@@ -6,8 +6,8 @@ import { Toaster } from "sonner";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Burger Tilin | Inteligencia de Negocios",
-  description: "Gestión avanzada e inteligencia para Burger Tilin",
+  title: "Burger Tilin",
+  description: "Burger Tilin Smash Burgers",
   icons: {
     icon: "/logo.jpg",
   },
@@ -21,7 +21,7 @@ export default function RootLayout({
   return (
     <html lang="es" className="dark">
       <body
-        className={`${inter.className} antialiased selection:bg-primary/30 selection:text-white`}
+        className={`${inter.className} antialiased selection:bg-primary/30 selection:text-white overflow-x-hidden`}
       >
         {children}
         <Toaster theme="dark" position="top-center" richColors />

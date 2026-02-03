@@ -40,7 +40,7 @@ export default function TrainingDialog() {
           ENTRENAR CEREBRO
         </Button>
       </DialogTrigger>
-      <DialogContent className="bg-zinc-950 border border-white/10 text-white sm:rounded-3xl">
+      <DialogContent className="bg-zinc-950 border border-white/10 text-white sm:rounded-3xl max-h-[85vh] overflow-y-auto no-scrollbar">
         <DialogHeader>
           <DialogTitle className="text-2xl font-black flex items-center gap-2">
             Entrenamiento Cognitivo

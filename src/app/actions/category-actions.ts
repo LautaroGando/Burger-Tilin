@@ -39,8 +39,8 @@ export async function createCategory(name: string) {
           where: { id: existing.id },
           data: { isActive: true },
         });
-        revalidatePath("/products");
-        revalidatePath("/sales/new");
+        revalidatePath("/admin/products");
+        revalidatePath("/admin/sales/new");
         return { success: true };
       }
     }

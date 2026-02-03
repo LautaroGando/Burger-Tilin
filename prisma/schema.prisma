@@ -29,6 +29,12 @@ model Product {
   promoDiscountMP Float    @default(0)
   recipe      RecipeItem[]
   sales       SaleItem[]
+  showPublic  Boolean  @default(true)
+  
+  // Relations for extras
+  allowedExtras ProductExtra[] @relation("MainProduct")
+  usedAsExtra   ProductExtra[] @relation("ExtraProduct")
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -51,8 +57,17 @@ model Ingredient {
   minStock    Decimal  // Reorder point
   recipeItems RecipeItem[]
   wasteLogs   WasteLog[]
+  priceHistory PriceHistory[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model PriceHistory {
+  id           String     @id @default(uuid())
+  ingredientId String
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id])
+  cost         Decimal
+  date         DateTime   @default(now())
 }
 
 model RecipeItem {
@@ -126,4 +141,38 @@ model BrainKnowledge {
   category  String?  // 'operation', 'recipe', 'history'
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
+}
+
+model User {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PlatformConfig {
+  id         String   @id @default(uuid())
+  name       String   @unique // RAPPI, PEYA, MERCADOPAGO, MOSTRADOR, etc.
+  commission Float    @default(0) // Percentage, e.g., 35.0
+  updatedAt  DateTime @updatedAt
+}
+
+model ProductExtra {
+  id             String  @id @default(uuid())
+  mainProductId  String
+  mainProduct    Product @relation("MainProduct", fields: [mainProductId], references: [id])
+  extraProductId String
+  extraProduct   Product @relation("ExtraProduct", fields: [extraProductId], references: [id])
+
+  @@unique([mainProductId, extraProductId])
+}
+
+model StoreHours {
+  id        String   @id @default(uuid())
+  dayOfWeek Int      @unique // 0 for Sunday, 1 for Monday, etc.
+  isOpen    Boolean  @default(true)
+  shifts    Json     // Array of { openTime: string, closeTime: string }
+  updatedAt DateTime @updatedAt
 }

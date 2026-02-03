@@ -25,4 +25,24 @@ export const productSchema = z.object({
   promoDiscountRappi: z.coerce.number().min(0).max(100).default(0),
   isPromoMP: z.boolean().default(false),
   promoDiscountMP: z.coerce.number().min(0).max(100).default(0),
+  showPublic: z.boolean().default(true),
 });
+
+export const storeHoursSchema = z.object({
+  dayOfWeek: z.number().min(0).max(6),
+  isOpen: z.boolean(),
+  shifts: z.array(
+    z.object({
+      openTime: z
+        .string()
+        .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Formato inválido (HH:mm)"),
+      closeTime: z
+        .string()
+        .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Formato inválido (HH:mm)"),
+    }),
+  ),
+});
+
+export type IngredientFormValues = z.infer<typeof ingredientSchema>;
+export type ProductFormValues = z.infer<typeof productSchema>;
+export type StoreHoursFormValues = z.infer<typeof storeHoursSchema>;

@@ -17,6 +17,7 @@ export interface Product {
   priceMP: number | null;
   categoryId: string | null;
   isActive: boolean;
+  showPublic: boolean;
   isPromo: boolean;
   promoDiscount: number;
   isPromoPY: boolean;
@@ -30,6 +31,14 @@ export interface Product {
     name: string;
   } | null;
   recipe?: RecipeItem[];
+  allowedExtras?: ProductExtra[];
+}
+
+export interface ProductExtra {
+  id: string;
+  mainProductId: string;
+  extraProductId: string;
+  extraProduct?: Product;
 }
 
 export interface RecipeItem {

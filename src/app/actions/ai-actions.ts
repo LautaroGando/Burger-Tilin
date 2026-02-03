@@ -14,7 +14,7 @@ export async function trainBrain(
         category,
       },
     });
-    revalidatePath("/brain");
+    revalidatePath("/admin/brain");
     return { success: true, data: knowledge };
   } catch (error) {
     console.error("Training Error:", error);
@@ -35,7 +35,7 @@ export async function getBrainKnowledge() {
 export async function deleteKnowledge(id: string) {
   try {
     await prisma.brainKnowledge.delete({ where: { id } });
-    revalidatePath("/brain");
+    revalidatePath("/admin/brain");
     return { success: true };
   } catch {
     return { success: false };

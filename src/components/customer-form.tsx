@@ -102,7 +102,7 @@ export function CustomerForm({
         <DialogTrigger asChild>
           {children || <Button>Nuevo Cliente</Button>}
         </DialogTrigger>
-        <DialogContent className="bg-[#1a1a1a] text-white border-white/10">
+        <DialogContent className="bg-[#1a1a1a] text-white border-white/10 max-h-[85vh] overflow-y-auto no-scrollbar">
           <DialogHeader>
             <DialogTitle>Nuevo Cliente</DialogTitle>
             <DialogDescription>

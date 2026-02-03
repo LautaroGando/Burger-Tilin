@@ -28,8 +28,8 @@ export async function createExpense(data: ExpenseFormValues) {
       },
     });
 
-    revalidatePath("/expenses", "page");
-    revalidatePath("/", "layout"); // Update dashboard profit across all pages
+    revalidatePath("/admin/expenses", "page");
+    revalidatePath("/admin", "page"); // Update dashboard profit across all pages
     return { success: true };
   } catch (error) {
     console.error("Create Expense Error:", error);
@@ -87,8 +87,8 @@ export async function updateExpense(id: string, data: ExpenseFormValues) {
       },
     });
 
-    revalidatePath("/expenses");
-    revalidatePath("/");
+    revalidatePath("/admin/expenses");
+    revalidatePath("/admin");
     return { success: true };
   } catch (error) {
     console.error("Update Expense Error:", error);

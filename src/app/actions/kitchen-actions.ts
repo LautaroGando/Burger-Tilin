@@ -104,7 +104,7 @@ export async function advanceOrderStatus(id: string, currentStatus: string) {
       where: { id },
       data: { status: nextStatus },
     });
-    revalidatePath("/kitchen");
+    revalidatePath("/admin/kitchen");
     return { success: true };
   } catch {
     return { success: false };
