@@ -65,24 +65,42 @@ export default function MenuClient({
     const minutes = now.getMinutes();
     const currentTime = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
 
+    const isTimeInShift = (current: string, open: string, close: string) => {
+      if (close >= open) {
+        // Normal shift (e.g., 09:00 - 18:00)
+        return current >= open && current <= close;
+      } else {
+        // Overnight shift (e.g., 20:00 - 02:00)
+        return current >= open || current <= close;
+      }
+    };
+
     const todayHours = storeHours.find((h) => h.dayOfWeek === day);
+    const prevDay = (day + 6) % 7;
+    const yesterdayHours = storeHours.find((h) => h.dayOfWeek === prevDay);
 
-    if (
-      !todayHours ||
-      !todayHours.isOpen ||
-      !todayHours.shifts ||
-      todayHours.shifts.length === 0
-    )
-      return { isOpen: false, text: "Cerrado", hours: "Cerrado" };
+    // 1. Check if we are within any of today's shifts
+    const openToday =
+      todayHours?.isOpen &&
+      todayHours.shifts?.some((shift) =>
+        isTimeInShift(currentTime, shift.openTime, shift.closeTime),
+      );
 
-    const isOpen = todayHours.shifts.some(
-      (shift) =>
-        currentTime >= shift.openTime && currentTime <= shift.closeTime,
-    );
+    // 2. Check if we are within an overnight shift that started yesterday
+    const openFromYesterday =
+      yesterdayHours?.isOpen &&
+      yesterdayHours.shifts?.some(
+        (shift) =>
+          shift.closeTime < shift.openTime && currentTime <= shift.closeTime,
+      );
 
-    const hoursText = todayHours.shifts
-      .map((s) => `${s.openTime} - ${s.closeTime}`)
-      .join(" / ");
+    const isOpen = !!(openToday || openFromYesterday);
+
+    const allShifts = todayHours?.shifts || [];
+    const hoursText =
+      allShifts.length > 0
+        ? allShifts.map((s) => `${s.openTime} - ${s.closeTime}`).join(" / ")
+        : "Cerrado";
 
     return {
       isOpen,
