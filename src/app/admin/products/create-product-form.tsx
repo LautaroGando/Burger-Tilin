@@ -29,13 +29,15 @@ import { updateProductExtras } from "@/app/actions/product-actions";
 
 type ProductFormValues = z.infer<typeof productSchema>;
 
+import { Product } from "@/lib/types";
+
 export default function CreateProductForm() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>(
     [],
   );
-  const [allProducts, setAllProducts] = useState<any[]>([]);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [selectedExtras, setSelectedExtras] = useState<string[]>([]);
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(

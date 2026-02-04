@@ -9,9 +9,41 @@ import { Product } from "@/lib/types";
 
 export type ProductFormValues = z.infer<typeof productSchema>;
 
+interface RawProduct {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number | string;
+  pricePedidosYa: number | string | null;
+  priceRappi: number | string | null;
+  priceMP: number | string | null;
+  categoryId: string | null;
+  categoryName: string | null;
+  isActive: boolean;
+  showPublic: number | boolean;
+  isPromo: boolean;
+  promoDiscount: number | string;
+  isPromoPY: boolean;
+  promoDiscountPY: number | string;
+  isPromoRappi: boolean;
+  promoDiscountRappi: number | string;
+  isPromoMP: boolean;
+  promoDiscountMP: number | string;
+}
+
+interface RawProductExtra {
+  id: string;
+  mainProductId: string;
+  extraProductId: string;
+}
+
 export async function createProduct(data: ProductFormValues) {
   try {
-    const { categoryId, showPublic, ...validated } = productSchema.parse(data);
+    const {
+      categoryId,
+      showPublic: dataShowPublic,
+      ...validated
+    } = productSchema.parse(data);
 
     const created = await prisma.product.create({
       data: {
@@ -24,7 +56,7 @@ export async function createProduct(data: ProductFormValues) {
     // Update showPublic via raw SQL
     await prisma.$executeRawUnsafe(
       'UPDATE "Product" SET "showPublic" = $1 WHERE id = $2',
-      data.showPublic ?? true,
+      dataShowPublic ?? true,
       created.id,
     );
 
@@ -45,7 +77,7 @@ export async function updateProduct(id: string, data: ProductFormValues) {
   try {
     // Destructure categoryId to handle it as a relation, not a direct field
     const validatedData = productSchema.parse(data);
-    const { categoryId, showPublic, ...rest } = validatedData;
+    const { categoryId, showPublic: dataShowPublic, ...rest } = validatedData;
 
     await prisma.product.update({
       where: { id },
@@ -59,7 +91,7 @@ export async function updateProduct(id: string, data: ProductFormValues) {
 
     await prisma.$executeRawUnsafe(
       'UPDATE "Product" SET "showPublic" = $1 WHERE id = $2',
-      data.showPublic ?? true,
+      dataShowPublic ?? true,
       id,
     );
 
@@ -82,7 +114,7 @@ export async function getProducts(): Promise<{
   error?: string;
 }> {
   try {
-    const products = await prisma.$queryRawUnsafe<any[]>(`
+    const products = await prisma.$queryRawUnsafe<RawProduct[]>(`
       SELECT 
         p.*,
         c.name as "categoryName",
@@ -98,7 +130,7 @@ export async function getProducts(): Promise<{
     });
 
     // Fetch allowed extras mapping
-    const extrasMapping = await prisma.$queryRawUnsafe<any[]>(
+    const extrasMapping = await prisma.$queryRawUnsafe<RawProductExtra[]>(
       'SELECT * FROM "ProductExtra"',
     );
 
@@ -124,7 +156,7 @@ export async function getProducts(): Promise<{
         category: product.categoryId
           ? {
               id: product.categoryId,
-              name: product.categoryName,
+              name: product.categoryName as string,
             }
           : null,
         recipe: productRecipes.map((item) => ({

@@ -19,11 +19,18 @@ import { updateProductExtras } from "@/app/actions/product-actions";
 import { motion, AnimatePresence } from "framer-motion";
 import { Eye, EyeOff } from "lucide-react";
 
+interface PlatformConfig {
+  id: string;
+  name: string;
+  commission: number;
+  updatedAt: Date;
+}
+
 interface ProductListProps {
   products: Product[];
   categories: { id: string; name: string }[];
   ingredients: Ingredient[];
-  platformConfigs: any[];
+  platformConfigs: PlatformConfig[];
 }
 
 export default function ProductList({

@@ -17,7 +17,7 @@ export default function PriceHistoryChart({
 }: {
   ingredientId: string;
 }) {
-  const [data, setData] = useState<any[]>([]);
+  const [data, setData] = useState<{ date: string; cost: number }[]>([]);
 
   useEffect(() => {
     async function load() {
@@ -78,7 +78,10 @@ export default function PriceHistoryChart({
               marginBottom: "4px",
               fontWeight: "bold",
             }}
-            formatter={(value: any) => [`$${value}`, "Costo"]}
+            formatter={(value: number | undefined) => [
+              `$${value || 0}`,
+              "Costo",
+            ]}
           />
           <Line
             type="monotone"

@@ -4,6 +4,8 @@ import { useMemo } from "react";
 import { MotionDiv } from "@/components/ui/motion";
 import { Sparkles, Plus } from "lucide-react";
 
+import { Product } from "@/lib/types";
+
 interface CartItem {
   productId: string;
   productName: string;
@@ -11,8 +13,8 @@ interface CartItem {
 
 interface UpsellRecommenderProps {
   cart: CartItem[];
-  products: any[];
-  onAdd: (product: any) => void;
+  products: Product[];
+  onAdd: (product: Product) => void;
 }
 
 export default function UpsellRecommender({
@@ -38,7 +40,7 @@ export default function UpsellRecommender({
       (name) => name.includes("papas") || name.includes("fritas"),
     );
 
-    const recs: any[] = [];
+    const recs: Product[] = [];
 
     // Rule 1: Suggest Drinks if there's a Burger but no Drinks
     if (hasBurger && !hasDrink) {

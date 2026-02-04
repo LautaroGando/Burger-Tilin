@@ -178,13 +178,18 @@ export async function getDashboardMetrics() {
     let totalCost = 0;
     let totalCommissions = 0;
 
+    interface RawPlatformConfig {
+      name: string;
+      commission: number | string;
+    }
+
     // Fetch platform commissions via raw SQL to avoid stale client issues
-    const platformConfigs = await prisma.$queryRawUnsafe<any[]>(
+    const platformConfigs = await prisma.$queryRawUnsafe<RawPlatformConfig[]>(
       'SELECT name, commission FROM "PlatformConfig"',
     );
     const commissionMap: Record<string, number> = {};
     platformConfigs.forEach((c) => {
-      commissionMap[c.name] = (c.commission || 0) / 100;
+      commissionMap[c.name] = Number(c.commission || 0) / 100;
     });
 
     todaysSales.forEach((sale) => {

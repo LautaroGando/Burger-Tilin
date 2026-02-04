@@ -37,26 +37,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { generateWhatsAppLink } from "@/lib/whatsapp";
 import UpsellRecommender from "./UpsellRecommender";
+import { Product } from "@/lib/types";
 
 // Types
-type Product = {
-  id: string;
-  name: string;
-  price: number;
-  pricePedidosYa: number | null;
-  priceRappi: number | null;
-  priceMP: number | null;
-  isPromo: boolean;
-  promoDiscount: number | null;
-  isPromoPY: boolean;
-  promoDiscountPY: number | null;
-  isPromoRappi: boolean;
-  promoDiscountRappi: number | null;
-  isPromoMP: boolean;
-  promoDiscountMP: number | null;
-  description: string | null;
-  categoryId?: string | null;
-};
 
 type CartItem = {
   productId: string;

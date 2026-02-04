@@ -30,6 +30,8 @@ import { motion } from "framer-motion";
 
 type ProductFormValues = z.infer<typeof productSchema>;
 
+import { Product } from "@/lib/types";
+
 interface Props {
   product: {
     id: string;
@@ -51,10 +53,13 @@ interface Props {
     showPublic: boolean;
     allowedExtras?: { id: string; extraProductId: string }[];
   };
-  allProducts?: any[]; // To pick extras from
+  allProducts?: Product[]; // To pick extras from
   categories: { id: string; name: string }[];
   onSuccess?: () => void;
-  onUpdateExtras?: (mainId: string, extras: string[]) => Promise<any>;
+  onUpdateExtras?: (
+    mainId: string,
+    extras: string[],
+  ) => Promise<{ success: boolean; error?: string }>;
 }
 
 const FormSection = ({

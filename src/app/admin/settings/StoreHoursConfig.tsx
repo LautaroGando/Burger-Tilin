@@ -37,7 +37,7 @@ export function StoreHoursConfig() {
   const handleDayChange = (
     dayIndex: number,
     field: keyof StoreHoursFormValues,
-    value: any,
+    value: string | boolean | { openTime: string; closeTime: string }[],
   ) => {
     setHours((prev) =>
       prev.map((h) =>

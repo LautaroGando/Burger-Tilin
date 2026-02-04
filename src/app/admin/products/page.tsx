@@ -30,6 +30,13 @@ import { getPlatformConfigs } from "@/app/actions/config-actions";
 import PlatformConfigManager from "./platform-config-manager";
 import { logout } from "@/app/actions/auth-actions";
 
+interface PlatformConfig {
+  id: string;
+  name: string;
+  commission: number;
+  updatedAt: Date;
+}
+
 export default async function ProductsPage() {
   const { data: products } = await getProducts();
   const ingredients = await getIngredients();
@@ -152,7 +159,9 @@ export default async function ProductsPage() {
                 </div>
                 <div className="p-8 pt-0">
                   <PlatformConfigManager
-                    configs={(platformConfigs as any[]) || []}
+                    configs={
+                      (platformConfigs as unknown as PlatformConfig[]) || []
+                    }
                   />
                 </div>
               </DialogContent>
@@ -208,7 +217,9 @@ export default async function ProductsPage() {
           products={products || []}
           categories={categories || []}
           ingredients={ingredients || []}
-          platformConfigs={(platformConfigs as any[]) || []}
+          platformConfigs={
+            (platformConfigs as unknown as PlatformConfig[]) || []
+          }
         />
 
         {products?.length === 0 && (

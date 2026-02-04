@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { storeHoursSchema, StoreHoursFormValues } from "@/lib/schemas";
+import type { Prisma } from "@prisma/client";
 
 export async function getStoreHours() {
   try {
@@ -42,13 +43,13 @@ export async function updateStoreHours(data: StoreHoursFormValues[]) {
         where: { dayOfWeek: day.dayOfWeek },
         update: {
           isOpen: day.isOpen,
-          shifts: day.shifts as any,
+          shifts: day.shifts as unknown as Prisma.InputJsonValue,
           updatedAt: new Date(),
         },
         create: {
           dayOfWeek: day.dayOfWeek,
           isOpen: day.isOpen,
-          shifts: day.shifts as any,
+          shifts: day.shifts as unknown as Prisma.InputJsonValue,
         },
       });
     }

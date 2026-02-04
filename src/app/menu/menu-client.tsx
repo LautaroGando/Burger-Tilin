@@ -273,17 +273,76 @@ export default function MenuClient({
               </span>
             </div>
 
-            {/* Delivery Area Warning */}
-            <div className="mt-12 flex flex-col items-center gap-4">
-              <div className="flex items-center gap-2 px-6 py-2.5 bg-primary/10 border border-primary/20 rounded-2xl shadow-[0_0_30px_rgba(252,169,13,0.1)]">
-                <MapPin className="h-4 w-4 text-primary animate-bounce" />
-                <span className="text-[11px] font-black uppercase tracking-widest text-primary italic">
-                  Zona Exclusiva: Barrio Kennedy
-                </span>
+            {/* Delivery Area Warning & Apps */}
+            <div className="mt-12 flex flex-col items-center gap-6">
+              <div className="flex flex-col items-center gap-2">
+                <div className="flex items-center gap-2 px-6 py-2.5 bg-primary/10 border border-primary/20 rounded-2xl shadow-[0_0_30px_rgba(252,169,13,0.1)]">
+                  <MapPin className="h-4 w-4 text-primary animate-bounce" />
+                  <span className="text-[11px] font-black uppercase tracking-widest text-primary italic">
+                    Zona Exclusiva: Barrio Kennedy
+                  </span>
+                </div>
+                <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest opacity-80 mt-1">
+                  Av. Juan B. Justo 9100, CABA, Liniers
+                </p>
               </div>
-              <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest opacity-80 mt-2">
-                Av. Juan B. Justo 9100, CABA, Liniers
-              </p>
+
+              {/* Delivery Channels - Ultra Calling to Action */}
+              <div className="w-full max-w-sm space-y-5 pt-6 border-t border-white/10">
+                <p className="text-[10px] text-neutral-400 font-black uppercase tracking-[0.2em] italic text-center">
+                  ¿Estás fuera del barrio? Pedinos por:
+                </p>
+                <div className="flex flex-col gap-3">
+                  <motion.a
+                    whileHover={{ scale: 1.02, x: 5 }}
+                    whileTap={{ scale: 0.98 }}
+                    href="https://www.pedidosya.com.ar/restaurantes/buenos-aires/burger-tilin-a9b7f4ae-ddb2-43c2-b0f0-22e4a18459a5-menu?category=24&origin=shop_list"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between px-6 py-4 bg-white border border-[#E3112B]/20 rounded-2xl shadow-[0_0_20px_rgba(227,17,43,0.1)] hover:shadow-[0_0_30px_rgba(227,17,43,0.3)] transition-all group"
+                  >
+                    <div className="relative h-6 w-32">
+                      <Image
+                        src="/pedidosya-logo.png"
+                        alt="PedidosYa"
+                        fill
+                        className="object-contain"
+                      />
+                    </div>
+                    <ChevronDown className="h-5 w-5 text-[#E3112B] -rotate-90 opacity-50 group-hover:opacity-100 transition-opacity" />
+                  </motion.a>
+
+                  <motion.a
+                    whileHover={{ scale: 1.02, x: 5 }}
+                    whileTap={{ scale: 0.98 }}
+                    href="https://www.rappi.com.ar/restaurantes/251431-burger-tilin"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between px-6 py-4 bg-white border border-[#FF441F]/20 rounded-2xl shadow-[0_0_20px_rgba(255,68,31,0.1)] hover:shadow-[0_0_30px_rgba(255,68,31,0.3)] transition-all group"
+                  >
+                    <div className="relative h-6 w-24">
+                      <Image
+                        src="/rappi-logo.png"
+                        alt="Rappi"
+                        fill
+                        className="object-contain text-black"
+                      />
+                    </div>
+                    <ChevronDown className="h-5 w-5 text-[#FF441F] -rotate-90 opacity-50 group-hover:opacity-100 transition-opacity" />
+                  </motion.a>
+
+                  <div className="flex items-center justify-start px-6 py-4 bg-white border border-[#009EE3]/20 rounded-2xl shadow-[0_0_20px_rgba(0,158,227,0.1)] transition-all">
+                    <div className="relative h-6 w-32">
+                      <Image
+                        src="/mercadopago-logo.png"
+                        alt="MercadoPago"
+                        fill
+                        className="object-contain"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </motion.div>

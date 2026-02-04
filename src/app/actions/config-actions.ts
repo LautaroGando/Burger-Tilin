@@ -3,9 +3,16 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
+interface RawPlatformConfig {
+  id: string;
+  name: string;
+  commission: number | string;
+  updatedAt: Date;
+}
+
 export async function getPlatformConfigs() {
   try {
-    const configs = await prisma.$queryRawUnsafe<any[]>(
+    const configs = await prisma.$queryRawUnsafe<RawPlatformConfig[]>(
       'SELECT * FROM "PlatformConfig"',
     );
 
@@ -27,7 +34,7 @@ export async function getPlatformConfigs() {
       }
 
       // Fetch again
-      const seeded = await prisma.$queryRawUnsafe<any[]>(
+      const seeded = await prisma.$queryRawUnsafe<RawPlatformConfig[]>(
         'SELECT * FROM "PlatformConfig"',
       );
       return { success: true, data: seeded };
