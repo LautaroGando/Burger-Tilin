@@ -171,7 +171,7 @@ export default async function Home() {
 
             {lowStockCount > 0 && (
               <Link
-                href="/ingredients"
+                href="/admin/ingredients"
                 className="w-full sm:w-auto order-2 sm:order-2 flex items-center justify-center gap-2 px-4 py-2 sm:py-3 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 text-[10px] sm:text-xs font-bold hover:bg-red-500/20 transition-all animate-pulse"
               >
                 <AlertTriangle className="h-3.5 w-3.5" />
