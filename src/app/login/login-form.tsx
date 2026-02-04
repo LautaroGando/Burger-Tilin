@@ -2,16 +2,17 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, KeyRound } from "lucide-react";
 import { toast } from "sonner";
-import { MotionDiv } from "@/components/ui/motion";
 
 export default function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -32,7 +33,14 @@ export default function LoginForm() {
         setLoading(false);
       } else {
         toast.success("¡Bienvenido, Admin!");
-        router.push("/");
+
+        // Redirect to callbackUrl if it's an admin path, otherwise default to /admin
+        const destination =
+          callbackUrl && callbackUrl.includes("/admin")
+            ? callbackUrl
+            : "/admin";
+
+        router.push(destination);
         router.refresh();
       }
     } catch (error) {

@@ -1,5 +1,6 @@
 import LoginForm from "./login-form";
 import { UtensilsCrossed } from "lucide-react";
+import { Suspense } from "react";
 
 export default function LoginPage() {
   return (
@@ -31,7 +32,15 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <LoginForm />
+          <Suspense
+            fallback={
+              <div className="h-64 flex items-center justify-center">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+              </div>
+            }
+          >
+            <LoginForm />
+          </Suspense>
 
           <div className="mt-8 text-center">
             <p className="text-[10px] text-neutral-600 uppercase tracking-widest font-bold">
