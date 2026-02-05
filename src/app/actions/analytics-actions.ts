@@ -206,36 +206,66 @@ export async function getSalesHistory(filter: SalesHistoryFilter): Promise<{
     });
 
     // Prepare Chart Data
-    const chartDataMap: Record<string, number> = {};
+    const chartDataMap: Record<
+      string,
+      { value: number; sortKey: string | number }
+    > = {};
 
     sales.forEach((sale) => {
       const d = new Date(sale.date);
       let key = "";
+      let sortKey: string | number = d.getTime();
 
       if (filter === "day") {
-        // Group by Hour (10:00, 11:00)
-        key = `${d.getHours()}:00`;
+        // Group by Hour (10:00, 11:00) using Argentina Timezone
+        const hour = new Intl.DateTimeFormat("es-AR", {
+          hour: "numeric",
+          hour12: false,
+          timeZone: "America/Argentina/Buenos_Aires",
+        }).format(d);
+        key = `${hour}:00`;
+        sortKey = parseInt(hour);
       } else if (filter === "week" || filter === "month") {
         // Group by Day (Mon, Tue OR 1, 2)
-        // Let's use Date string for sorting correctness
-        key = d.toLocaleDateString("es-AR", { day: "numeric", month: "short" });
+        key = d.toLocaleDateString("es-AR", {
+          day: "numeric",
+          month: "short",
+          timeZone: "America/Argentina/Buenos_Aires",
+        });
+        // For daily sorting within a week/month, we use the start of the day as sortKey
+        const dayCopy = new Date(d);
+        dayCopy.setHours(0, 0, 0, 0);
+        sortKey = dayCopy.getTime();
       } else if (filter === "year" || filter === "all") {
         // Group by Month
-        key = d.toLocaleDateString("es-AR", { month: "long" });
+        key = d.toLocaleDateString("es-AR", {
+          month: "long",
+          timeZone: "America/Argentina/Buenos_Aires",
+        });
+        sortKey = d.getFullYear() * 12 + d.getMonth();
       }
 
-      chartDataMap[key] = (chartDataMap[key] || 0) + Number(sale.total);
+      const existing = chartDataMap[key] || { value: 0, sortKey };
+      chartDataMap[key] = {
+        value: existing.value + Number(sale.total),
+        sortKey: existing.sortKey,
+      };
     });
 
-    // Format for Recharts
-    // We might want to sort this if keys are not auto-sorted.
-    // Map doesn't guarantee order if we just iterate keys.
-    // For simplicity in MVP, let's just push.
-    // For better UX, we might need to pre-fill 0s.
-    const chartData = Object.entries(chartDataMap).map(([name, value]) => ({
-      name,
-      value,
-    }));
+    // Format for Recharts and Sort Chronologically
+    const chartData = Object.entries(chartDataMap)
+      .map(([name, data]) => ({
+        name,
+        value: data.value,
+        sortKey: data.sortKey,
+      }))
+      .sort((a, b) => {
+        if (typeof a.sortKey === "number" && typeof b.sortKey === "number") {
+          return a.sortKey - b.sortKey;
+        }
+        return String(a.sortKey).localeCompare(String(b.sortKey));
+      })
+      .map(({ name, value }) => ({ name, value }));
 
     // Calculate totals for the period
     let totalRevenue = 0;
@@ -375,7 +405,7 @@ export async function getAdvancedAnalytics(): Promise<{
     const sales = await prisma.sale.findMany({
       where: {
         date: { gte: thirtyDaysAgo },
-        status: "COMPLETED",
+        status: { in: ["COMPLETED", "PENDING"] },
       },
       include: {
         items: true,
@@ -419,8 +449,14 @@ export async function getAdvancedAnalytics(): Promise<{
     });
 
     sales.forEach((sale) => {
-      // Peak Hours
-      const hour = new Date(sale.date).getHours();
+      // Peak Hours using Argentina timezone
+      const d = new Date(sale.date);
+      const hourStr = new Intl.DateTimeFormat("es-AR", {
+        hour: "numeric",
+        hour12: false,
+        timeZone: "America/Argentina/Buenos_Aires",
+      }).format(d);
+      const hour = parseInt(hourStr);
       hourMap[hour] = (hourMap[hour] || 0) + 1;
 
       // Revenue & Commission
