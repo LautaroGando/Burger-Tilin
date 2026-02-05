@@ -31,11 +31,26 @@ export async function createSale(data: CreateSaleValues) {
 
     // Use a transaction to ensure stock is only deducted if sale succeeds
     await prisma.$transaction(async (tx) => {
+      // Fetch platform commission for this channel to "freeze" it
+      let commissionToStore = validated.discount; // Default to manual discount
+      if (
+        validated.channel &&
+        validated.channel !== "COUNTER" &&
+        validated.channel !== "WHATSAPP"
+      ) {
+        const config = await tx.platformConfig.findUnique({
+          where: { name: validated.channel.toUpperCase() },
+        });
+        if (config && config.commission > 0) {
+          commissionToStore = -Number(config.commission);
+        }
+      }
+
       // 1. Create the Sale Record
       await tx.sale.create({
         data: {
           total: validated.total,
-          discount: validated.discount,
+          discount: commissionToStore,
           paymentMethod: validated.paymentMethod,
           channel: validated.channel || "COUNTER",
           status:
@@ -193,8 +208,13 @@ export async function getDashboardMetrics() {
     });
 
     todaysSales.forEach((sale) => {
-      // Calculate Commission dynamically
-      const commissionRate = commissionMap[sale.channel.toUpperCase()] ?? 0;
+      // Calculate Commission: Use "frozen" if discount < 0, otherwise dynamic
+      let commissionRate = 0;
+      if (Number(sale.discount) < 0) {
+        commissionRate = Math.abs(Number(sale.discount)) / 100;
+      } else {
+        commissionRate = commissionMap[sale.channel.toUpperCase()] ?? 0;
+      }
       totalCommissions += Number(sale.total) * commissionRate;
 
       sale.items.forEach((item) => {

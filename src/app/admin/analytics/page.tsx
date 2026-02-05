@@ -139,20 +139,17 @@ export default async function AnalyticsPage() {
                       <p className="text-neutral-400 mt-2 text-sm sm:text-lg leading-relaxed max-w-xl">
                         Tu objetivo para no perder dinero. Cubre tus{" "}
                         <span className="text-white font-bold">
-                          Gastos Fijos
+                          Gastos del Mes
                         </span>{" "}
-                        y tu{" "}
-                        <span className="text-white font-bold">
-                          Inversión en Insumos
-                        </span>{" "}
-                        para comenzar a generar ganancias.
+                        registrados manualmente utilizando tus ventas netas
+                        (libres de comisiones).
                       </p>
                     </div>
 
                     <div className="space-y-4">
                       <div className="flex justify-between text-sm font-bold uppercase tracking-wider">
                         <span className="text-neutral-400">
-                          Recuperación de Inversión
+                          Cobertura de Gastos
                         </span>
                         <span
                           className={
@@ -177,7 +174,7 @@ export default async function AnalyticsPage() {
                         <span>
                           {breakEvenPoint === 0
                             ? "Sin gastos registrados"
-                            : `Meta: $${breakEvenPoint.toLocaleString()}`}
+                            : `Meta: $${Math.ceil(breakEvenPoint).toLocaleString()}`}
                         </span>
                       </div>
                     </div>
@@ -225,15 +222,11 @@ export default async function AnalyticsPage() {
                                 : "Zona de Cobertura"}
                         </h3>
                         <p className="text-sm text-zinc-300 mt-1 leading-relaxed">
-                          {isProfitable
-                            ? `Has superado el punto de equilibrio por $${(totalSales - breakEvenPoint).toLocaleString()}. Cada venta adicional es utilidad neta para el negocio.`
+                          {isProfitable || progress >= 100
+                            ? `Has superado el total de tus gastos por $${(totalSales - breakEvenPoint).toLocaleString()} de facturación neta excedente.`
                             : !hasActivity || totalSales === 0
                               ? "Todavía no hay ventas registradas este mes. Una vez que comiences a vender, el sistema calculará tu progreso."
-                              : grossMargin <= 0
-                                ? `¡Alerta! Estás perdiendo plata en cada venta. El costo de insumos y comisiones ($${variableCosts.toLocaleString()}) supera tus ventas netas ($${totalSales.toLocaleString()}). Revisá tus precios urgente.`
-                                : fixedCosts === 0
-                                  ? `Tus ventas cubren tus costos pero no has registrado Gastos Fijos (Alquiler, Sueldos). Agregalos para ver tu meta real.`
-                                  : `Aún necesitas facturar $${(breakEvenPoint - totalSales).toLocaleString()} más para cubrir tus costos operativos totales ($${(fixedCosts + variableCosts).toLocaleString()}).`}
+                              : `Aún necesitas facturar $${(Math.ceil(breakEvenPoint) - totalSales).toLocaleString()} más para cubrir tus gastos registrados de este mes ($${breakEvenPoint.toLocaleString()}).`}
                         </p>
                       </div>
                     </div>
@@ -243,13 +236,13 @@ export default async function AnalyticsPage() {
                   <div className="w-full lg:w-1/3 grid gap-4">
                     <div className="p-6 rounded-2xl bg-black/40 border border-white/5 hover:border-white/10 transition-colors">
                       <p className="text-neutral-500 text-[10px] uppercase tracking-widest font-bold mb-2">
-                        Costos Fijos
+                        Gastos Totales
                       </p>
                       <p className="text-2xl sm:text-3xl font-black text-white">
                         ${fixedCosts.toLocaleString()}
                       </p>
                       <p className="text-xs text-neutral-600 mt-1">
-                        Alquiler, Servicios, Sueldos
+                        Suma de todos tus gastos del mes
                       </p>
                     </div>
                     <div className="p-6 rounded-2xl bg-black/40 border border-white/5 hover:border-white/10 transition-colors">
@@ -303,10 +296,9 @@ export default async function AnalyticsPage() {
                       <p className="flex items-start gap-2">
                         <span className="text-primary font-bold">•</span>
                         <span>
-                          Tu estructura de costos fijos es de{" "}
-                          <strong>${fixedCosts}</strong>. Dado tu margen actual,
-                          tu objetivo mensual mínimo es{" "}
-                          <strong>${Math.ceil(breakEvenPoint)}</strong>.
+                          El total de tus gastos este mes es de{" "}
+                          <strong>${fixedCosts}</strong>. Tu objetivo de ventas
+                          netas es alcanzar esa cifra para estar en equilibrio.
                         </span>
                       </p>
                     )}

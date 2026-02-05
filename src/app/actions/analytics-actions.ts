@@ -73,7 +73,7 @@ export async function getBreakEvenAnalysis(): Promise<{
     const totalSales = sales.reduce((sum, s) => sum + Number(s.total), 0);
 
     // Calculate Variable Costs (Ingredients used in these sales)
-    let variableCosts = 0;
+    let cogs = 0; // Cost of Goods Sold (Recipes)
     let totalCommissions = 0;
 
     // We need to fetch all product costs first to avoid N+1
@@ -86,29 +86,31 @@ export async function getBreakEvenAnalysis(): Promise<{
     });
 
     // Map product ID to its cost
-    const productCosts: Record<string, number> = {};
+    const productCostsMap: Record<string, number> = {};
     products.forEach((p) => {
       const cost = p.recipe.reduce(
         (sum, item) =>
           sum + Number(item.quantity) * Number(item.ingredient.cost),
         0,
       );
-      productCosts[p.id] = cost;
+      productCostsMap[p.id] = cost;
     });
 
     sales.forEach((sale) => {
-      // Calculate dynamic Commission
-      const commRate = commissionMap[sale.channel.toUpperCase()] ?? 0;
+      // Calculate Commission: Use "frozen" if discount < 0, otherwise dynamic
+      let commRate = 0;
+      if (Number(sale.discount) < 0) {
+        commRate = Math.abs(Number(sale.discount)) / 100;
+      } else {
+        commRate = commissionMap[sale.channel.toUpperCase()] ?? 0;
+      }
       totalCommissions += Number(sale.total) * commRate;
 
       sale.items.forEach((item) => {
-        const cost = productCosts[item.productId] || 0;
-        variableCosts += cost * item.quantity;
+        const cost = productCostsMap[item.productId] || 0;
+        cogs += cost * item.quantity;
       });
     });
-
-    // Add variable expenses from DB (not related to recipes)
-    variableCosts += extraVariableCosts;
 
     // 2.5. Get Wastage
     const wastageLogs = await prisma.wasteLog.findMany({
@@ -121,34 +123,38 @@ export async function getBreakEvenAnalysis(): Promise<{
       0,
     );
 
-    // 3. Calculate Break-even
+    // 3. Simplified Break-even (Coverage Model)
+    // The user wants: "Net Sales vs Total Manual Expenses"
     const netSales = totalSales - totalCommissions;
-    const grossMargin = netSales - variableCosts - totalWastage;
+    const totalExpenses = fixedCosts + extraVariableCosts;
+
+    // The target is simply to reach the total amount spent
+    const breakEvenPoint = totalExpenses;
+
+    // Progress is how much of the total expenses have been covered by Net Sales
+    const progress =
+      breakEvenPoint > 0
+        ? (netSales / breakEvenPoint) * 100
+        : netSales > 0
+          ? 100
+          : 0;
+
+    // Gross margin for context in other dashboard parts
+    const grossMargin = netSales - cogs - totalWastage;
     const contributionMarginRatio = netSales > 0 ? grossMargin / netSales : 0;
-
-    // 3. Calculate Break-even (Cost Recovery Model)
-    // The user wants to see how much they need to sell to COVER everything spent.
-    // Meta = Fixed + Variable (All costs incurred so far)
-    const breakEvenPoint = fixedCosts + variableCosts;
-
-    // Progress is how much of those total costs have been recovered by Net Sales
-    const progress = breakEvenPoint > 0 ? (netSales / breakEvenPoint) * 100 : 0;
 
     return {
       success: true,
       data: {
-        fixedCosts,
-        variableCosts,
-        totalSales: netSales, // Using Net Sales here for a more realistic dashboard
+        fixedCosts: totalExpenses, // Use this for "Total Gastos" in UI
+        variableCosts: cogs,
+        totalSales: netSales,
         grossMargin,
         contributionMarginRatio,
-        breakEvenPoint: netSales === 0 && fixedCosts === 0 ? 0 : breakEvenPoint,
-        progress: netSales === 0 && fixedCosts === 0 ? 0 : progress,
+        breakEvenPoint,
+        progress: Math.min(progress, 150),
         hasActivity:
-          netSales > 0 ||
-          fixedCosts > 0 ||
-          variableCosts > 0 ||
-          totalWastage > 0,
+          netSales > 0 || totalExpenses > 0 || cogs > 0 || totalWastage > 0,
         wastage: totalWastage,
       },
     };
@@ -302,7 +308,13 @@ export async function getSalesHistory(filter: SalesHistoryFilter): Promise<{
       const saleNet = Number(s.total);
       totalRevenue += saleNet;
 
-      const commRate = commMap[s.channel.toUpperCase()] ?? 0;
+      // Calculate Commission: Use "frozen" if discount < 0, otherwise dynamic
+      let commRate = 0;
+      if (Number(s.discount) < 0) {
+        commRate = Math.abs(Number(s.discount)) / 100;
+      } else {
+        commRate = commMap[s.channel.toUpperCase()] ?? 0;
+      }
       totalCommissions += saleNet * commRate;
 
       s.items.forEach((item) => {
@@ -462,7 +474,13 @@ export async function getAdvancedAnalytics(): Promise<{
       // Revenue & Commission
       const saleTotal = Number(sale.total);
 
-      const commRate = commMap[sale.channel.toUpperCase()] ?? 0;
+      // Calculate Commission: Use "frozen" if discount < 0, otherwise dynamic
+      let commRate = 0;
+      if (Number(sale.discount) < 0) {
+        commRate = Math.abs(Number(sale.discount)) / 100;
+      } else {
+        commRate = commMap[sale.channel.toUpperCase()] ?? 0;
+      }
       const saleCommission = saleTotal * commRate;
 
       totalGrossRevenue += saleTotal;
@@ -731,7 +749,15 @@ export async function getCashFlowForecast() {
 
     const totalNetRevenue = sales.reduce((sum, s) => {
       const total = Number(s.total);
-      const commissionRate = commMap[s.channel.toUpperCase()] ?? 0;
+
+      // Calculate Commission: Use "frozen" if discount < 0, otherwise dynamic
+      let commissionRate = 0;
+      if (Number(s.discount) < 0) {
+        commissionRate = Math.abs(Number(s.discount)) / 100;
+      } else {
+        commissionRate = commMap[s.channel.toUpperCase()] ?? 0;
+      }
+
       const commission = total * commissionRate;
       return sum + (total - commission);
     }, 0);

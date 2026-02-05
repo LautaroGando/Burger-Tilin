@@ -369,21 +369,37 @@ export default function SalesDashboard() {
                                 <span>
                                   ${Number(sale.total).toLocaleString()}
                                 </span>
-                                {data.commMap &&
-                                  data.commMap[sale.channel] !== undefined &&
-                                  data.commMap[sale.channel] > 0 && (
-                                    <span className="text-[10px] text-red-500/70 font-bold">
-                                      Neto (-
-                                      {Math.round(
-                                        data.commMap[sale.channel] * 100,
-                                      )}
-                                      %): $
-                                      {(
-                                        Number(sale.total) *
-                                        (1 - (data.commMap[sale.channel] || 0))
-                                      ).toLocaleString()}
-                                    </span>
-                                  )}
+                                {(() => {
+                                  const frozenComm =
+                                    Number(sale.discount) < 0
+                                      ? Math.abs(Number(sale.discount)) / 100
+                                      : null;
+                                  const currentComm = data.commMap
+                                    ? data.commMap[
+                                        sale.channel.toUpperCase()
+                                      ] ||
+                                      data.commMap[sale.channel] ||
+                                      0
+                                    : 0;
+                                  const commToUse =
+                                    frozenComm !== null
+                                      ? frozenComm
+                                      : currentComm;
+
+                                  if (commToUse > 0) {
+                                    return (
+                                      <span className="text-[10px] text-red-500/70 font-bold">
+                                        Neto (-{Math.round(commToUse * 100)}%):
+                                        $
+                                        {(
+                                          Number(sale.total) *
+                                          (1 - commToUse)
+                                        ).toLocaleString()}
+                                      </span>
+                                    );
+                                  }
+                                  return null;
+                                })()}
                               </div>
                             </td>
                             <td className="px-6 py-4 text-center">
@@ -509,19 +525,33 @@ export default function SalesDashboard() {
                   <span className="text-3xl font-black text-primary tracking-tight">
                     ${Number(selectedSale.total).toLocaleString()}
                   </span>
-                  {data?.commMap &&
-                    data.commMap[selectedSale.channel] !== undefined &&
-                    data.commMap[selectedSale.channel] > 0 && (
-                      <span className="text-xs text-red-500 font-bold uppercase tracking-tighter">
-                        Neto (-
-                        {Math.round(data.commMap[selectedSale.channel] * 100)}
-                        %): $
-                        {(
-                          Number(selectedSale.total) *
-                          (1 - (data.commMap[selectedSale.channel] || 0))
-                        ).toLocaleString()}
-                      </span>
-                    )}
+                  {(() => {
+                    const frozenComm =
+                      Number(selectedSale.discount) < 0
+                        ? Math.abs(Number(selectedSale.discount)) / 100
+                        : null;
+                    const currentComm =
+                      data && data.commMap
+                        ? data.commMap[selectedSale.channel.toUpperCase()] ||
+                          data.commMap[selectedSale.channel] ||
+                          0
+                        : 0;
+                    const commToUse =
+                      frozenComm !== null ? frozenComm : currentComm;
+
+                    if (commToUse > 0) {
+                      return (
+                        <span className="text-xs text-red-500 font-bold uppercase tracking-tighter">
+                          Neto (-{Math.round(commToUse * 100)}%): $
+                          {(
+                            Number(selectedSale.total) *
+                            (1 - commToUse)
+                          ).toLocaleString()}
+                        </span>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               </div>
 
