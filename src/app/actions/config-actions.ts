@@ -19,9 +19,9 @@ export async function getPlatformConfigs() {
     if (!configs || configs.length === 0) {
       // Seed defaults
       const defaults = [
-        { id: crypto.randomUUID(), name: "PedidosYa", commission: 0 },
-        { id: crypto.randomUUID(), name: "Rappi", commission: 0 },
-        { id: crypto.randomUUID(), name: "MercadoPago", commission: 0 },
+        { id: crypto.randomUUID(), name: "PEYA", commission: 0 },
+        { id: crypto.randomUUID(), name: "RAPPI", commission: 0 },
+        { id: crypto.randomUUID(), name: "MERCADOPAGO", commission: 0 },
       ];
 
       for (const def of defaults) {

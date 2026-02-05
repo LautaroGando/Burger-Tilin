@@ -98,7 +98,7 @@ export async function getBreakEvenAnalysis(): Promise<{
 
     sales.forEach((sale) => {
       // Calculate dynamic Commission
-      const commRate = commissionMap[sale.channel] ?? 0;
+      const commRate = commissionMap[sale.channel.toUpperCase()] ?? 0;
       totalCommissions += Number(sale.total) * commRate;
 
       sale.items.forEach((item) => {
@@ -272,7 +272,7 @@ export async function getSalesHistory(filter: SalesHistoryFilter): Promise<{
       const saleNet = Number(s.total);
       totalRevenue += saleNet;
 
-      const commRate = commMap[s.channel] ?? 0;
+      const commRate = commMap[s.channel.toUpperCase()] ?? 0;
       totalCommissions += saleNet * commRate;
 
       s.items.forEach((item) => {
@@ -426,7 +426,7 @@ export async function getAdvancedAnalytics(): Promise<{
       // Revenue & Commission
       const saleTotal = Number(sale.total);
 
-      const commRate = commMap[sale.channel] ?? 0;
+      const commRate = commMap[sale.channel.toUpperCase()] ?? 0;
       const saleCommission = saleTotal * commRate;
 
       totalGrossRevenue += saleTotal;
@@ -695,7 +695,7 @@ export async function getCashFlowForecast() {
 
     const totalNetRevenue = sales.reduce((sum, s) => {
       const total = Number(s.total);
-      const commissionRate = commMap[s.channel] ?? 0;
+      const commissionRate = commMap[s.channel.toUpperCase()] ?? 0;
       const commission = total * commissionRate;
       return sum + (total - commission);
     }, 0);

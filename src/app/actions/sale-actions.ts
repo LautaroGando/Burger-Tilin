@@ -194,7 +194,7 @@ export async function getDashboardMetrics() {
 
     todaysSales.forEach((sale) => {
       // Calculate Commission dynamically
-      const commissionRate = commissionMap[sale.channel] ?? 0;
+      const commissionRate = commissionMap[sale.channel.toUpperCase()] ?? 0;
       totalCommissions += Number(sale.total) * commissionRate;
 
       sale.items.forEach((item) => {
