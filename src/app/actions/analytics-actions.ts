@@ -734,11 +734,12 @@ export async function getCashFlowForecast() {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    // 1. Average Daily Income (Net)
+    // 1. Fetch Sales (last 30 days)
     const sales = await prisma.sale.findMany({
       where: { date: { gte: thirtyDaysAgo }, status: "COMPLETED" },
     });
 
+    // 2. Load Platform Configs for Commission Calculation
     const platformConfigs = await prisma.$queryRawUnsafe<
       PlatformConfigResult[]
     >('SELECT name, commission FROM "PlatformConfig"');
@@ -747,24 +748,74 @@ export async function getCashFlowForecast() {
       commMap[c.name] = (c.commission || 0) / 100;
     });
 
-    const totalNetRevenue = sales.reduce((sum, s) => {
+    // 3. Group Sales into Active Days
+    // Format: YYYY-MM-DD
+    const daysMap: Record<string, { netIncome: number; orders: number }> = {};
+
+    sales.forEach((s) => {
+      const dateKey = new Date(s.date).toISOString().split("T")[0];
       const total = Number(s.total);
 
-      // Calculate Commission: Use "frozen" if discount < 0, otherwise dynamic
+      // Commission Logic
       let commissionRate = 0;
       if (Number(s.discount) < 0) {
         commissionRate = Math.abs(Number(s.discount)) / 100;
       } else {
         commissionRate = commMap[s.channel.toUpperCase()] ?? 0;
       }
+      const net = total * (1 - commissionRate);
 
-      const commission = total * commissionRate;
-      return sum + (total - commission);
-    }, 0);
+      if (!daysMap[dateKey]) {
+        daysMap[dateKey] = { netIncome: 0, orders: 0 };
+      }
+      daysMap[dateKey].netIncome += net;
+      daysMap[dateKey].orders += 1;
+    });
 
-    const avgDailyIncome = totalNetRevenue / 30;
+    // Sort active days chronologically (newest first)
+    const activeDays = Object.entries(daysMap)
+      .map(([date, stats]) => ({ date, ...stats }))
+      .sort((a, b) => b.date.localeCompare(a.date));
 
-    // 2. Fixed Expenses (Daily)
+    let avgDailyIncome = 0;
+
+    if (activeDays.length > 0) {
+      // 4. Weighted Average Calculation
+      // We give 70% weight to the most recent 7 active days
+      // and 30% to the rest of the month.
+      const recentCount = 7;
+      const recentDays = activeDays.slice(0, recentCount);
+      const olderDays = activeDays.slice(recentCount);
+
+      const calcMetrics = (subset: typeof activeDays) => {
+        if (subset.length === 0)
+          return { avgNet: 0, avgOrders: 0, avgTicket: 0 };
+        const totalNet = subset.reduce((sum, d) => sum + d.netIncome, 0);
+        const totalOrders = subset.reduce((sum, d) => sum + d.orders, 0);
+        return {
+          avgNet: totalNet / subset.length,
+          avgOrders: totalOrders / subset.length,
+          avgTicket: totalOrders > 0 ? totalNet / totalOrders : 0,
+        };
+      };
+
+      const recentMetrics = calcMetrics(recentDays);
+      const olderMetrics = calcMetrics(olderDays);
+
+      if (olderDays.length > 0) {
+        // Ponderación: 70% reciente / 30% histórico
+        const finalAvgOrders =
+          recentMetrics.avgOrders * 0.7 + olderMetrics.avgOrders * 0.3;
+        const finalAvgTicket =
+          recentMetrics.avgTicket * 0.7 + olderMetrics.avgTicket * 0.3;
+        avgDailyIncome = finalAvgOrders * finalAvgTicket;
+      } else {
+        // Not enough data for weighting, use simple average of available active days
+        avgDailyIncome = recentMetrics.avgNet;
+      }
+    }
+
+    // 5. Fixed Expenses (Daily) - Keep current logic but normalize to 30 days
     const fixedExpenses = await prisma.expense.findMany({
       where: { isFixed: true },
     });
@@ -774,11 +825,10 @@ export async function getCashFlowForecast() {
     );
     const dailyFixed = monthlyFixed / 30;
 
-    // 3. Expected Procurement (from Smart Purchase)
+    // 6. Expected Procurement (from Smart Purchase)
     const purchaseRes = await getOptimalPurchaseList();
     let expectedProcurementCost = 0;
     if (purchaseRes.success && purchaseRes.data) {
-      // Estimate cost based on current ingredient costs
       const ingredients = await prisma.ingredient.findMany();
       purchaseRes.data.forEach((s) => {
         const ing = ingredients.find((i) => i.id === s.id);
@@ -788,7 +838,7 @@ export async function getCashFlowForecast() {
       });
     }
 
-    // 4. Forecast for next 7 days
+    // 7. Forecast for next 7 days
     const days = 7;
     const projectedIncome = avgDailyIncome * days;
     const projectedFixedExpenses = dailyFixed * days;
