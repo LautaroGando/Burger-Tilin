@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { getStartOfMonthInArgentina } from "@/lib/utils";
 
 const expenseSchema = z.object({
   description: z.string().min(2, "Descripción requerida"),
@@ -98,9 +99,7 @@ export async function updateExpense(id: string, data: ExpenseFormValues) {
 
 export async function getExpenseStats() {
   try {
-    const currentMonth = new Date();
-    currentMonth.setDate(1);
-    currentMonth.setHours(0, 0, 0, 0);
+    const currentMonth = getStartOfMonthInArgentina();
 
     const expenses = await prisma.expense.findMany({
       where: {

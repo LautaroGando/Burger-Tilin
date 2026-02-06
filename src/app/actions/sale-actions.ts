@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { autoTrain } from "./ai-actions";
+import { getStartOfDayInArgentina } from "@/lib/utils";
 
 // Schema for the sale items
 const saleItemSchema = z.object({
@@ -156,8 +157,7 @@ export async function getRecentSales() {
 
 export async function getDashboardMetrics() {
   try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getStartOfDayInArgentina();
 
     // 1. Get today's sales
     const todaysSales = await prisma.sale.findMany({

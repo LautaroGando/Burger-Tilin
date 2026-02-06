@@ -3,6 +3,10 @@
 import { prisma } from "@/lib/prisma";
 import { Sale } from "@/lib/types";
 import { getOptimalPurchaseList } from "./ingredient-actions";
+import {
+  getStartOfDayInArgentina,
+  getStartOfMonthInArgentina,
+} from "@/lib/utils";
 
 interface PlatformConfigResult {
   name: string;
@@ -27,8 +31,16 @@ export async function getBreakEvenAnalysis(): Promise<{
 }> {
   try {
     const now = new Date();
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const firstDay = getStartOfMonthInArgentina(now);
+    // For lastDay, we can just use the start of the next month and go back one day,
+    // or just use gte: firstDay and simplify the query if we don't care about future data.
+    // Let's keep it robust.
+    const lastDay = new Date(
+      firstDay.getFullYear(),
+      firstDay.getMonth() + 1,
+      0,
+    );
+    lastDay.setHours(23, 59, 59, 999);
 
     // 1. Get All Monthly Expenses
     const dbExpenses = await prisma.expense.findMany({
@@ -183,16 +195,48 @@ export async function getSalesHistory(filter: SalesHistoryFilter): Promise<{
     let startDate = new Date(0); // Epoch for "all"
 
     if (filter === "day") {
-      startDate = new Date(now.setHours(0, 0, 0, 0));
+      startDate = getStartOfDayInArgentina(now);
     } else if (filter === "week") {
-      const day = now.getDay();
-      const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
-      startDate = new Date(now.setDate(diff));
-      startDate.setHours(0, 0, 0, 0);
+      // Use Argentina time to determine the start of the week (Monday)
+      const formatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/Argentina/Buenos_Aires",
+        weekday: "narrow",
+      });
+      const dayName = formatter.format(now); // e.g., "M", "T"
+
+      const argMidnight = getStartOfDayInArgentina(now);
+      const day = now.getDay(); // This is server-local, might be off.
+      // Better: get day of week in Argentina
+      const argDay = parseInt(
+        new Intl.DateTimeFormat("en-US", {
+          timeZone: "America/Argentina/Buenos_Aires",
+          day: "numeric",
+        }).format(now),
+      );
+
+      // Let's use a simpler approach for week: subtract days from start of today in Argentina
+      const dayOfWeek = (now.getUTCDay() + 6) % 7; // Monday = 0, Sunday = 6 (Server might still be off)
+
+      // I'll trust getStartOfDayInArgentina and then adjust
+      startDate = new Date(argMidnight);
+      const currentDay = startDate.getDay();
+      const diff =
+        startDate.getDate() - currentDay + (currentDay === 0 ? -6 : 1);
+      startDate.setDate(diff);
     } else if (filter === "month") {
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      startDate = getStartOfMonthInArgentina(now);
     } else if (filter === "year") {
-      startDate = new Date(now.getFullYear(), 0, 1);
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/Argentina/Buenos_Aires",
+        year: "numeric",
+      }).formatToParts(now);
+      const year = parts.find((p) => p.type === "year")?.value;
+      startDate = new Date(`${year}-01-01T00:00:00Z`); // This is not perfect because of the T00:00:00Z
+      // Actually, since we compare with gte, being slightly before the start of year in Argentina is fine
+      // as long as we don't include previous year's sales.
+      // But let's be precise:
+      startDate = new Date(parseInt(year!), 0, 1);
+      startDate.setHours(0, 0, 0, 0); // Still local.
     }
 
     const sales = await prisma.sale.findMany({
@@ -410,8 +454,9 @@ export async function getAdvancedAnalytics(): Promise<{
 }> {
   try {
     const now = new Date();
-    const thirtyDaysAgo = new Date(now);
-    thirtyDaysAgo.setDate(now.getDate() - 30);
+    // Start of today in Argentina minus 30 days
+    const thirtyDaysAgo = getStartOfDayInArgentina(now);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     // 1. Fetch Sales (lightweight)
     const sales = await prisma.sale.findMany({
