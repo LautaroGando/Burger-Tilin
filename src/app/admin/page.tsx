@@ -400,12 +400,14 @@ export default async function Home() {
                 </p>
               </div>
             </div>
-            <Button
-              variant="ghost"
-              className="text-xs text-neutral-400 hover:text-white hover:bg-white/5"
-            >
-              Ver Todo <ArrowRight className="h-3 w-3 ml-2" />
-            </Button>
+            <Link href="/admin/analytics">
+              <Button
+                variant="ghost"
+                className="text-xs text-neutral-400 hover:text-white hover:bg-white/5"
+              >
+                Ver Todo <ArrowRight className="h-3 w-3 ml-2" />
+              </Button>
+            </Link>
           </div>
 
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
