@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { autoTrain } from "./ai-actions";
 import { getStartOfDayInArgentina } from "@/lib/utils";
+import { normalizePlatformName } from "@/lib/constants";
 
 // Schema for the sale items
 const saleItemSchema = z.object({
@@ -40,7 +41,7 @@ export async function createSale(data: CreateSaleValues) {
         validated.channel !== "WHATSAPP"
       ) {
         const config = await tx.platformConfig.findUnique({
-          where: { name: validated.channel.toUpperCase() },
+          where: { name: normalizePlatformName(validated.channel) },
         });
         if (config && config.commission > 0) {
           commissionToStore = -Number(config.commission);
@@ -204,7 +205,8 @@ export async function getDashboardMetrics() {
     );
     const commissionMap: Record<string, number> = {};
     platformConfigs.forEach((c) => {
-      commissionMap[c.name] = Number(c.commission || 0) / 100;
+      commissionMap[normalizePlatformName(c.name)] =
+        Number(c.commission || 0) / 100;
     });
 
     todaysSales.forEach((sale) => {
@@ -213,7 +215,8 @@ export async function getDashboardMetrics() {
       if (Number(sale.discount) < 0) {
         commissionRate = Math.abs(Number(sale.discount)) / 100;
       } else {
-        commissionRate = commissionMap[sale.channel.toUpperCase()] ?? 0;
+        commissionRate =
+          commissionMap[normalizePlatformName(sale.channel)] ?? 0;
       }
       totalCommissions += Number(sale.total) * commissionRate;
 

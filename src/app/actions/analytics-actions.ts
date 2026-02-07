@@ -7,6 +7,7 @@ import {
   getStartOfDayInArgentina,
   getStartOfMonthInArgentina,
 } from "@/lib/utils";
+import { normalizePlatformName } from "@/lib/constants";
 
 interface PlatformConfigResult {
   name: string;
@@ -79,7 +80,7 @@ export async function getBreakEvenAnalysis(): Promise<{
     >('SELECT name, commission FROM "PlatformConfig"');
     const commissionMap: Record<string, number> = {};
     platformConfigs.forEach((c) => {
-      commissionMap[c.name] = (c.commission || 0) / 100;
+      commissionMap[normalizePlatformName(c.name)] = (c.commission || 0) / 100;
     });
 
     const totalSales = sales.reduce((sum, s) => sum + Number(s.total), 0);
@@ -114,7 +115,7 @@ export async function getBreakEvenAnalysis(): Promise<{
       if (Number(sale.discount) < 0) {
         commRate = Math.abs(Number(sale.discount)) / 100;
       } else {
-        commRate = commissionMap[sale.channel.toUpperCase()] ?? 0;
+        commRate = commissionMap[normalizePlatformName(sale.channel)] ?? 0;
       }
       totalCommissions += Number(sale.total) * commRate;
 
@@ -345,7 +346,7 @@ export async function getSalesHistory(filter: SalesHistoryFilter): Promise<{
     >('SELECT name, commission FROM "PlatformConfig"');
     const commMap: Record<string, number> = {};
     platformConfigs.forEach((c) => {
-      commMap[c.name] = (c.commission || 0) / 100;
+      commMap[normalizePlatformName(c.name)] = (c.commission || 0) / 100;
     });
 
     sales.forEach((s) => {
@@ -357,7 +358,7 @@ export async function getSalesHistory(filter: SalesHistoryFilter): Promise<{
       if (Number(s.discount) < 0) {
         commRate = Math.abs(Number(s.discount)) / 100;
       } else {
-        commRate = commMap[s.channel.toUpperCase()] ?? 0;
+        commRate = commMap[normalizePlatformName(s.channel)] ?? 0;
       }
       totalCommissions += saleNet * commRate;
 
@@ -502,7 +503,7 @@ export async function getAdvancedAnalytics(): Promise<{
     >('SELECT name, commission FROM "PlatformConfig"');
     const commMap: Record<string, number> = {};
     platformConfigs.forEach((c) => {
-      commMap[c.name] = (c.commission || 0) / 100;
+      commMap[normalizePlatformName(c.name)] = (c.commission || 0) / 100;
     });
 
     sales.forEach((sale) => {
@@ -524,7 +525,7 @@ export async function getAdvancedAnalytics(): Promise<{
       if (Number(sale.discount) < 0) {
         commRate = Math.abs(Number(sale.discount)) / 100;
       } else {
-        commRate = commMap[sale.channel.toUpperCase()] ?? 0;
+        commRate = commMap[normalizePlatformName(sale.channel)] ?? 0;
       }
       const saleCommission = saleTotal * commRate;
 
@@ -712,7 +713,7 @@ export async function getRealTimeProfitability() {
     >('SELECT name, commission FROM "PlatformConfig"');
     const commMap: Record<string, number> = {};
     platformConfigs.forEach((c) => {
-      commMap[c.name] = (c.commission || 0) / 100;
+      commMap[normalizePlatformName(c.name)] = (c.commission || 0) / 100;
     });
 
     const profitability = products
@@ -790,7 +791,7 @@ export async function getCashFlowForecast() {
     >('SELECT name, commission FROM "PlatformConfig"');
     const commMap: Record<string, number> = {};
     platformConfigs.forEach((c) => {
-      commMap[c.name] = (c.commission || 0) / 100;
+      commMap[normalizePlatformName(c.name)] = (c.commission || 0) / 100;
     });
 
     // 3. Group Sales into Active Days

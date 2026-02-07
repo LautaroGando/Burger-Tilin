@@ -18,6 +18,7 @@ import EditProductForm from "./edit-product-form";
 import { updateProductExtras } from "@/app/actions/product-actions";
 import { motion, AnimatePresence } from "framer-motion";
 import { Eye, EyeOff } from "lucide-react";
+import { normalizePlatformName } from "@/lib/constants";
 
 interface PlatformConfig {
   id: string;
@@ -48,7 +49,7 @@ export default function ProductList({
 
   const commMap: Record<string, number> = {};
   platformConfigs?.forEach((c) => {
-    commMap[c.name] = c.commission / 100;
+    commMap[normalizePlatformName(c.name)] = c.commission / 100;
   });
 
   const toggleCategory = (id: string) => {
@@ -203,12 +204,7 @@ export default function ProductList({
                               ? base * (1 - Number(p.discount || 0) / 100)
                               : base;
 
-                            const channelKey =
-                              p.id === "PY"
-                                ? "PedidosYa"
-                                : p.id === "Rappi"
-                                  ? "Rappi"
-                                  : "MercadoPago";
+                            const channelKey = normalizePlatformName(p.id);
                             const netRevenue = getPlatformRevenue(
                               final,
                               channelKey,
