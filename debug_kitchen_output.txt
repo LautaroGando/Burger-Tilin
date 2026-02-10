@@ -1,0 +1,9 @@
+Fetching active kitchen orders...
+Found 0 active orders.
+Current Server Time: 2026-02-10T22:03:30.533Z
+
+--- Summary ---
+Pending: 0
+In Progress: 0
+Total Active (Pending+InProgress): 0
+Estimated Wait Time: 0

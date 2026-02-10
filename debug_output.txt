@@ -1,0 +1,58 @@
+Searching for product...
+Found 5 products with 'Americana'.
+
+--- Product Analysis ---
+Name: La Tilin Americana Doble + Onion Tilin Doble
+ID: 2df1da1e-116d-4f9f-85c1-07ddf0b8e1ec
+Base Price: 30000
+Recipe:
+  - Aluminio: 2 units @ $188 = $376
+  - Bacon: 2 units @ $160 = $320
+  - Bolsa: 2 units @ $100 = $200
+  - Caja de Snacks: 2 units @ $80 = $160
+  - Carne: 4 units @ $1610 = $6440
+  - Cebolla: 1 units @ $113 = $113
+  - Cheddar: 8 units @ $155 = $1240
+  - Pan de papa: 2 units @ $667 = $1334
+  - Papas Fritas: 2 units @ $539 = $1078
+  - Sazon: 2 units @ $50 = $100
+  - Lata Pepsi 354ml.: 2 units @ $800 = $1600
+Total Recipe Cost: $12961
+
+--- Sales Analysis (Last 10) ---
+
+Sale Date: 2026-02-09 | Channel: MERCADOPAGO
+Commission Rate: 35.00% (Frozen)
+  Qty: 1
+  Unit Price: $30400
+  Revenue: $30400
+  Total Cost (Current): $12961
+  Commission: $10640.00
+  Profit: $6799.00
+
+Sale Date: 2026-02-05 | Channel: PEYA
+Commission Rate: 67.00% (Frozen)
+  Qty: 1
+  Unit Price: $30400
+  Revenue: $30400
+  Total Cost (Current): $12961
+  Commission: $20368.00
+  Profit: $-2929.00
+
+Sale Date: 2026-02-05 | Channel: MERCADOPAGO
+Commission Rate: 35.00% (Dynamic)
+  Qty: 1
+  Unit Price: $30400
+  Revenue: $30400
+  Total Cost (Current): $12961
+  Commission: $10640.00
+  Profit: $6799.00
+
+Sale Date: 2026-02-05 | Channel: PEYA
+Commission Rate: 30.00% (Dynamic)
+  Qty: 1
+  Unit Price: $30400
+  Revenue: $30400
+  Total Cost (Current): $12961
+  Commission: $9120.00
+  Profit: $8319.00

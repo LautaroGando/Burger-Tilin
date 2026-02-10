@@ -26,6 +26,7 @@ import { getDashboardMetrics } from "@/app/actions/sale-actions";
 import { getLowStockAlerts } from "@/app/actions/ingredient-actions";
 import BusinessHealthGauge from "@/components/bi/BusinessHealthGauge";
 import PeakHoursChart from "@/components/bi/PeakHoursChart";
+import HealthDetailsDialog from "@/components/bi/HealthDetailsDialog";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -277,32 +278,56 @@ export default async function Home() {
                 </div>
               )}
 
-              <div className="scale-100 md:scale-125 mb-8 mt-4">
-                <BusinessHealthGauge score={advanced.data?.healthScore || 0} />
-              </div>
+              <HealthDetailsDialog
+                data={
+                  advanced.data?.healthBreakdown || {
+                    margin: { score: 0, value: 0, max: 40, target: 40 },
+                    stock: {
+                      score: 0,
+                      value: 0,
+                      max: 30,
+                      totalIngredients: 0,
+                      lowStockCount: 0,
+                    },
+                    volume: { score: 0, value: 0, max: 30, target: 10 },
+                  }
+                }
+                totalScore={advanced.data?.healthScore || 0}
+              >
+                <div className="cursor-pointer transition-transform hover:scale-105 active:scale-95 flex flex-col items-center">
+                  <div className="scale-100 md:scale-125 mb-8 mt-4">
+                    <BusinessHealthGauge
+                      score={advanced.data?.healthScore || 0}
+                    />
+                  </div>
 
-              <div className="mb-4">
-                <span
-                  className={`text-xs font-black uppercase tracking-widest ${
-                    (advanced.data?.totalSales || 0) === 0
-                      ? "text-neutral-500"
-                      : (advanced.data?.healthScore || 0) >= 80
-                        ? "text-green-500"
-                        : (advanced.data?.healthScore || 0) >= 50
-                          ? "text-primary"
-                          : "text-red-500"
-                  }`}
-                >
-                  Estado:{" "}
-                  {(advanced.data?.totalSales || 0) === 0
-                    ? "Sin Datos"
-                    : (advanced.data?.healthScore || 0) >= 80
-                      ? "Excelente"
-                      : (advanced.data?.healthScore || 0) >= 50
-                        ? "Estable"
-                        : "Crítico"}
-                </span>
-              </div>
+                  <div className="mb-4">
+                    <span
+                      className={`text-xs font-black uppercase tracking-widest ${
+                        (advanced.data?.totalSales || 0) === 0
+                          ? "text-neutral-500"
+                          : (advanced.data?.healthScore || 0) >= 80
+                            ? "text-green-500"
+                            : (advanced.data?.healthScore || 0) >= 50
+                              ? "text-primary"
+                              : "text-red-500"
+                      }`}
+                    >
+                      Estado:{" "}
+                      {(advanced.data?.totalSales || 0) === 0
+                        ? "Sin Datos"
+                        : (advanced.data?.healthScore || 0) >= 80
+                          ? "Excelente"
+                          : (advanced.data?.healthScore || 0) >= 50
+                            ? "Estable"
+                            : "Crítico"}
+                    </span>
+                    <p className="text-[10px] text-neutral-500 mt-1 uppercase tracking-wider font-bold">
+                      Click para ver detalles
+                    </p>
+                  </div>
+                </div>
+              </HealthDetailsDialog>
 
               <div className="grid grid-cols-2 gap-4 w-full border-t border-white/5 pt-6">
                 <div>

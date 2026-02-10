@@ -55,10 +55,7 @@ export async function createSale(data: CreateSaleValues) {
           discount: commissionToStore,
           paymentMethod: validated.paymentMethod,
           channel: validated.channel || "COUNTER",
-          status:
-            validated.channel === "COUNTER" || validated.channel === "WHATSAPP"
-              ? "COMPLETED"
-              : "PENDING", // PENDING for Delivery apps until confirmed? Or everything COMPLETED usually? For now let's auto-complete direct sales.
+          status: "PENDING", // Always start as PENDING so it goes to Kitchen
           clientName: validated.clientName,
           customerId: validated.customerId, // Link to registered customer
           items: {

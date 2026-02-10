@@ -1,0 +1,52 @@
+Fetching ALL recent sales...
+Found 10 recent sales.
+
+Order #1645
+  Status: 'COMPLETED'
+  Date: 2026-02-10T03:19:00.109Z
+  Items: 1
+
+Order #cbc8
+  Status: 'COMPLETED'
+  Date: 2026-02-10T02:33:32.676Z
+  Items: 1
+
+Order #60d2
+  Status: 'COMPLETED'
+  Date: 2026-02-10T01:56:17.447Z
+  Items: 2
+
+Order #bf08
+  Status: 'COMPLETED'
+  Date: 2026-02-09T23:10:16.199Z
+  Items: 1
+
+Order #ab83
+  Status: 'COMPLETED'
+  Date: 2026-02-07T19:17:36.884Z
+  Items: 1
+
+Order #2101
+  Status: 'COMPLETED'
+  Date: 2026-02-07T02:44:09.091Z
+  Items: 2
+
+Order #a0ae
+  Status: 'COMPLETED'
+  Date: 2026-02-07T02:43:25.016Z
+  Items: 1
+
+Order #fcb6
+  Status: 'COMPLETED'
+  Date: 2026-02-07T02:30:51.272Z
+  Items: 1
+
+Order #2c75
+  Status: 'COMPLETED'
+  Date: 2026-02-07T01:50:00.433Z
+  Items: 1
+
+Order #586f
+  Status: 'COMPLETED'
+  Date: 2026-02-07T00:30:41.602Z
+  Items: 1

@@ -113,7 +113,13 @@ export async function getBreakEvenAnalysis(): Promise<{
       // Calculate Commission: Use "frozen" if discount < 0, otherwise dynamic
       let commRate = 0;
       if (Number(sale.discount) < 0) {
-        commRate = Math.abs(Number(sale.discount)) / 100;
+        const frozenRate = Math.abs(Number(sale.discount)) / 100;
+        // Sanity Check: If frozen rate is > 50%, it's likely an error. Use current platform rate.
+        if (frozenRate > 0.5) {
+          commRate = commissionMap[normalizePlatformName(sale.channel)] ?? 0;
+        } else {
+          commRate = frozenRate;
+        }
       } else {
         commRate = commissionMap[normalizePlatformName(sale.channel)] ?? 0;
       }
@@ -283,17 +289,27 @@ export async function getSalesHistory(filter: SalesHistoryFilter): Promise<{
           month: "short",
           timeZone: "America/Argentina/Buenos_Aires",
         });
-        // For daily sorting within a week/month, we use the start of the day as sortKey
-        const dayCopy = new Date(d);
-        dayCopy.setHours(0, 0, 0, 0);
-        sortKey = dayCopy.getTime();
+        // For daily sorting within a week/month, we use the start of the day in ARG as sortKey
+        sortKey = getStartOfDayInArgentina(d).getTime();
       } else if (filter === "year" || filter === "all") {
         // Group by Month
+        const parts = new Intl.DateTimeFormat("es-AR", {
+          month: "numeric",
+          year: "numeric",
+          timeZone: "America/Argentina/Buenos_Aires",
+        }).formatToParts(d);
+        const month = parseInt(
+          parts.find((p) => p.type === "month")?.value || "0",
+        );
+        const year = parseInt(
+          parts.find((p) => p.type === "year")?.value || "0",
+        );
+
         key = d.toLocaleDateString("es-AR", {
           month: "long",
           timeZone: "America/Argentina/Buenos_Aires",
         });
-        sortKey = d.getFullYear() * 12 + d.getMonth();
+        sortKey = year * 12 + month;
       }
 
       const existing = chartDataMap[key] || { value: 0, sortKey };
@@ -356,7 +372,13 @@ export async function getSalesHistory(filter: SalesHistoryFilter): Promise<{
       // Calculate Commission: Use "frozen" if discount < 0, otherwise dynamic
       let commRate = 0;
       if (Number(s.discount) < 0) {
-        commRate = Math.abs(Number(s.discount)) / 100;
+        const frozenRate = Math.abs(Number(s.discount)) / 100;
+        // Sanity Check: if > 50%, fallback to dynamic
+        if (frozenRate > 0.5) {
+          commRate = commMap[normalizePlatformName(s.channel)] ?? 0;
+        } else {
+          commRate = frozenRate;
+        }
       } else {
         commRate = commMap[normalizePlatformName(s.channel)] ?? 0;
       }
@@ -447,6 +469,17 @@ export type AdvancedAnalytics = {
   customerRecurrence: number;
   totalSales: number;
   totalWastage: number;
+  healthBreakdown: {
+    margin: { score: number; value: number; max: number; target: number };
+    stock: {
+      score: number;
+      value: number;
+      max: number;
+      totalIngredients: number;
+      lowStockCount: number;
+    };
+    volume: { score: number; value: number; max: number; target: number };
+  };
 };
 
 export async function getAdvancedAnalytics(): Promise<{
@@ -523,7 +556,13 @@ export async function getAdvancedAnalytics(): Promise<{
       // Calculate Commission: Use "frozen" if discount < 0, otherwise dynamic
       let commRate = 0;
       if (Number(sale.discount) < 0) {
-        commRate = Math.abs(Number(sale.discount)) / 100;
+        const frozenRate = Math.abs(Number(sale.discount)) / 100;
+        // Sanity Check: If frozen rate is > 50% (e.g. 67%), it's likely an error. Use current platform rate.
+        if (frozenRate > 0.5) {
+          commRate = commMap[normalizePlatformName(sale.channel)] ?? 0;
+        } else {
+          commRate = frozenRate;
+        }
       } else {
         commRate = commMap[normalizePlatformName(sale.channel)] ?? 0;
       }
@@ -689,6 +728,27 @@ export async function getAdvancedAnalytics(): Promise<{
         customerRecurrence,
         totalSales: sales.length,
         totalWastage,
+        healthBreakdown: {
+          margin: {
+            score: marginComponent,
+            value: overallMargin,
+            max: 40,
+            target: 40,
+          },
+          stock: {
+            score: stockComponent,
+            value: stockHealth * 100,
+            max: 30,
+            totalIngredients,
+            lowStockCount: lowStockIngredients,
+          },
+          volume: {
+            score: volumeComponent,
+            value: salesPerDay,
+            max: 30,
+            target: 10,
+          },
+        },
       },
     };
   } catch (error) {
@@ -795,11 +855,23 @@ export async function getCashFlowForecast() {
     });
 
     // 3. Group Sales into Active Days
-    // Format: YYYY-MM-DD
+    // Format: YYYY-MM-DD using Argentina Timezone
     const daysMap: Record<string, { netIncome: number; orders: number }> = {};
 
     sales.forEach((s) => {
-      const dateKey = new Date(s.date).toISOString().split("T")[0];
+      const d = new Date(s.date);
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/Argentina/Buenos_Aires",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).formatToParts(d);
+
+      const year = parts.find((p) => p.type === "year")?.value;
+      const month = parts.find((p) => p.type === "month")?.value;
+      const day = parts.find((p) => p.type === "day")?.value;
+      const dateKey = `${year}-${month}-${day}`;
+
       const total = Number(s.total);
 
       // Commission Logic
