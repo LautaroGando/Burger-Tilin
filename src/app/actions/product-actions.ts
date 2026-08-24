@@ -14,21 +14,15 @@ interface RawProduct {
   name: string;
   description: string | null;
   price: number | string;
-  pricePedidosYa: number | string | null;
-  priceRappi: number | string | null;
-  priceMP: number | string | null;
+  priceApps: number | string | null;
   categoryId: string | null;
   categoryName: string | null;
   isActive: boolean;
   showPublic: number | boolean;
   isPromo: boolean;
   promoDiscount: number | string;
-  isPromoPY: boolean;
-  promoDiscountPY: number | string;
-  isPromoRappi: boolean;
-  promoDiscountRappi: number | string;
-  isPromoMP: boolean;
-  promoDiscountMP: number | string;
+  isPromoApps: boolean;
+  promoDiscountApps: number | string;
 }
 
 interface RawProductExtra {
@@ -75,7 +69,6 @@ export async function createProduct(data: ProductFormValues) {
 
 export async function updateProduct(id: string, data: ProductFormValues) {
   try {
-    // Destructure categoryId to handle it as a relation, not a direct field
     const validatedData = productSchema.parse(data);
     const { categoryId, showPublic: dataShowPublic, ...rest } = validatedData;
 
@@ -99,7 +92,6 @@ export async function updateProduct(id: string, data: ProductFormValues) {
     return { success: true };
   } catch (error) {
     console.error("Failed to update product:", error);
-    // If it's a Prisma error about unknown fields, it's likely the sync issue
     return {
       success: false,
       error:
@@ -116,7 +108,18 @@ export async function getProducts(): Promise<{
   try {
     const products = await prisma.$queryRawUnsafe<RawProduct[]>(`
       SELECT 
-        p.*,
+        p.id,
+        p.name,
+        p.description,
+        p.price,
+        p."priceApps",
+        p."categoryId",
+        p."isActive",
+        p."showPublic",
+        p."isPromo",
+        p."promoDiscount",
+        p."isPromoApps",
+        p."promoDiscountApps",
         c.name as "categoryName",
         c.id as "categoryId"
       FROM "Product" p
@@ -134,24 +137,25 @@ export async function getProducts(): Promise<{
       'SELECT * FROM "ProductExtra"',
     );
 
+    // Fetch combo slots
+    const comboSlots = await prisma.comboSlot.findMany();
+
     const serializedProducts = products.map((product) => {
       const productRecipes = recipes.filter((r) => r.productId === product.id);
       const productExtras = extrasMapping.filter(
         (ex) => ex.mainProductId === product.id,
       );
+      const productComboSlots = comboSlots.filter(
+        (slot) => slot.comboId === product.id
+      );
 
       return {
         ...product,
         price: Number(product.price),
-        pricePedidosYa: product.pricePedidosYa
-          ? Number(product.pricePedidosYa)
-          : null,
-        priceRappi: product.priceRappi ? Number(product.priceRappi) : null,
-        priceMP: product.priceMP ? Number(product.priceMP) : null,
+        priceApps: product.priceApps ? Number(product.priceApps) : null,
         promoDiscount: Number(product.promoDiscount || 0),
-        promoDiscountPY: Number(product.promoDiscountPY || 0),
-        promoDiscountRappi: Number(product.promoDiscountRappi || 0),
-        promoDiscountMP: Number(product.promoDiscountMP || 0),
+        promoDiscountApps: Number(product.promoDiscountApps || 0),
+        isPromoApps: !!product.isPromoApps,
         showPublic: !!product.showPublic,
         category: product.categoryId
           ? {
@@ -170,6 +174,7 @@ export async function getProducts(): Promise<{
           },
         })),
         allowedExtras: productExtras,
+        comboSlots: productComboSlots,
       };
     });
 
@@ -233,5 +238,125 @@ export async function updateProductExtras(
   } catch (error) {
     console.error("Update Extras Error:", error);
     return { success: false, error: "Error al actualizar los extras" };
+  }
+}
+
+// ── Inline price edit ────────────────────────────────────────────────────────
+export async function updateProductPrice(id: string, price: number) {
+  try {
+    await prisma.product.update({
+      where: { id },
+      data: { price },
+    });
+    revalidatePath("/admin/products");
+    return { success: true };
+  } catch (error) {
+    console.error("Update Price Error:", error);
+    return { success: false, error: "Error al actualizar precio" };
+  }
+}
+
+// ── Bulk toggle active/inactive ──────────────────────────────────────────────
+export async function bulkToggleProducts(ids: string[], isActive: boolean) {
+  try {
+    await prisma.product.updateMany({
+      where: { id: { in: ids } },
+      data: { isActive },
+    });
+    revalidatePath("/admin/products");
+    return { success: true };
+  } catch (error) {
+    console.error("Bulk Toggle Error:", error);
+    return { success: false, error: "Error al actualizar productos" };
+  }
+}
+
+// ── Bulk apply promo to selected products ─────────────────────────────────────
+export async function bulkApplyPromo(
+  ids: string[],
+  discount: number,
+  enable: boolean,
+  target: "LOCAL" | "APPS" | "BOTH" = "BOTH"
+) {
+  try {
+    const data: any = {};
+    if (target === "LOCAL" || target === "BOTH") {
+      data.isPromo = enable;
+      data.promoDiscount = discount;
+    }
+    if (target === "APPS" || target === "BOTH") {
+      data.isPromoApps = enable;
+      data.promoDiscountApps = discount;
+    }
+
+    await prisma.product.updateMany({
+      where: { id: { in: ids } },
+      data,
+    });
+    revalidatePath("/admin/products");
+    return { success: true };
+  } catch (error) {
+    console.error("Bulk Promo Error:", error);
+    return { success: false, error: "Error al aplicar promoción" };
+  }
+}
+
+// ── Apply promo to ALL products in a category ─────────────────────────────────
+export async function bulkApplyPromoByCategory(
+  categoryId: string | "ALL",
+  discount: number,
+  enable: boolean,
+  target: "LOCAL" | "APPS" | "BOTH" = "BOTH"
+) {
+  try {
+    const where = categoryId === "ALL" ? {} : { categoryId };
+    const data: any = {};
+    if (target === "LOCAL" || target === "BOTH") {
+      data.isPromo = enable;
+      data.promoDiscount = discount;
+    }
+    if (target === "APPS" || target === "BOTH") {
+      data.isPromoApps = enable;
+      data.promoDiscountApps = discount;
+    }
+
+    await prisma.product.updateMany({
+      where,
+      data,
+    });
+    revalidatePath("/admin/products");
+    return { success: true };
+  } catch (error) {
+    console.error("Bulk Promo By Category Error:", error);
+    return { success: false, error: "Error al aplicar promoción por categoría" };
+  }
+}
+
+// ── Remove all active promos ──────────────────────────────────────────────────
+export async function removeAllPromos(target: "LOCAL" | "APPS" | "BOTH" = "BOTH") {
+  try {
+    const data: any = {};
+    if (target === "LOCAL" || target === "BOTH") {
+      data.isPromo = false;
+      data.promoDiscount = 0;
+    }
+    if (target === "APPS" || target === "BOTH") {
+      data.isPromoApps = false;
+      data.promoDiscountApps = 0;
+    }
+
+    const OR = [];
+    if (target === "LOCAL" || target === "BOTH") OR.push({ isPromo: true });
+    if (target === "APPS" || target === "BOTH") OR.push({ isPromoApps: true });
+
+    await prisma.product.updateMany({
+      where: { OR },
+      data,
+    });
+    revalidatePath("/admin/products");
+    return { success: true };
+  } catch (error) {
+    console.error("Remove All Promos Error:", error);
+    return { success: false, error: "Error al quitar promociones" };
   }
 }

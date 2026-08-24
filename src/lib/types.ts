@@ -12,26 +12,23 @@ export interface Product {
   name: string;
   description: string | null;
   price: number;
-  pricePedidosYa: number | null;
-  priceRappi: number | null;
-  priceMP: number | null;
+  priceApps?: number | null;
   categoryId: string | null;
   isActive: boolean;
   showPublic: boolean;
   isPromo: boolean;
   promoDiscount: number;
-  isPromoPY: boolean;
-  promoDiscountPY: number;
-  isPromoRappi: boolean;
-  promoDiscountRappi: number;
-  isPromoMP: boolean;
-  promoDiscountMP: number;
+  isPromoApps: boolean;
+  promoDiscountApps: number;
   category?: {
     id: string;
     name: string;
   } | null;
   recipe?: RecipeItem[];
   allowedExtras?: ProductExtra[];
+  comboSlots?: ComboSlot[];
+  comboDefaults?: ComboSlot[];
+  comboAlternatives?: ComboSlotAlternative[];
 }
 
 export interface ProductExtra {
@@ -56,6 +53,7 @@ export interface SaleItem {
   quantity: number;
   unitPrice: number;
   product: Product;
+  fulfillments?: SaleItemFulfillment[];
 }
 
 export interface Sale {
@@ -74,4 +72,32 @@ export interface Sale {
     totalSpent: number;
   } | null;
   items: SaleItem[];
+}
+
+export interface ComboSlot {
+  id: string;
+  comboId: string;
+  name: string;
+  defaultProductId: string;
+  defaultProduct?: Product;
+  alternatives?: ComboSlotAlternative[];
+  sortOrder: number;
+}
+
+export interface ComboSlotAlternative {
+  id: string;
+  slotId: string;
+  productId: string;
+  product?: Product;
+  extraPrice: number;
+}
+
+export interface SaleItemFulfillment {
+  id: string;
+  saleItemId: string;
+  slotId: string;
+  configuredProductId: string;
+  deliveredProductId: string;
+  replacementReason: string | null;
+  createdAt: Date;
 }

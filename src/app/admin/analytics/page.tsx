@@ -15,8 +15,6 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
-import CashFlowForecast from "./CashFlowForecast";
-
 export default async function AnalyticsPage() {
   const { data } = await getBreakEvenAnalysis();
 
@@ -109,12 +107,6 @@ export default async function AnalyticsPage() {
                 className="w-full sm:w-auto rounded-2xl sm:rounded-full px-6 py-3 sm:py-2 text-xs font-bold uppercase tracking-wider data-[state=active]:bg-white data-[state=active]:text-black transition-all"
               >
                 Punto de Equilibrio
-              </TabsTrigger>
-              <TabsTrigger
-                value="forecast"
-                className="w-full sm:w-auto rounded-2xl sm:rounded-full px-6 py-3 sm:py-2 text-xs font-bold uppercase tracking-wider data-[state=active]:bg-primary data-[state=active]:text-black transition-all"
-              >
-                Flujo de Caja (IA)
               </TabsTrigger>
             </TabsList>
 
@@ -341,10 +333,6 @@ export default async function AnalyticsPage() {
                   </CardContent>
                 </Card>
               </div>
-            </TabsContent>
-
-            <TabsContent value="forecast" className="mt-0">
-              <CashFlowForecast />
             </TabsContent>
           </Tabs>
         </MotionItem>

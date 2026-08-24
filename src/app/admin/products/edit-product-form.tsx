@@ -1,6 +1,6 @@
 "use client";
 
-import { useForm, UseFormReturn, Path, Resolver } from "react-hook-form";
+import { useForm, Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { updateProduct } from "@/app/actions/product-actions";
 import { productSchema } from "@/lib/schemas";
@@ -11,19 +11,20 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
 import { DialogFooter } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import ComboSlotEditor from "./ComboSlotEditor";
 import {
   Loader2,
   Package,
   LayoutGrid,
   Tag,
   DollarSign,
-  Smartphone,
   Percent,
-  Info,
-  ChevronRight,
   Eye,
   EyeOff,
   PlusCircle,
+  Store,
+  Smartphone,
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
@@ -38,22 +39,25 @@ interface Props {
     name: string;
     description: string | null;
     price: number;
-    pricePedidosYa?: number | null;
-    priceRappi?: number | null;
-    priceMP?: number | null;
+    priceApps?: number | null;
     categoryId: string | null;
     isPromo?: boolean;
     promoDiscount?: number | null;
-    isPromoPY?: boolean;
-    promoDiscountPY?: number | null;
-    isPromoRappi?: boolean;
-    promoDiscountRappi?: number | null;
-    isPromoMP?: boolean;
-    promoDiscountMP?: number | null;
+    isPromoApps?: boolean;
+    promoDiscountApps?: number | null;
     showPublic: boolean;
-    allowedExtras?: { id: string; extraProductId: string }[];
+    allowedExtras?: {
+      id: string;
+      mainProductId: string;
+      extraProductId: string;
+      extraProduct?: {
+        id: string;
+        name: string;
+        price: number | string;
+      };
+    }[];
   };
-  allProducts?: Product[]; // To pick extras from
+  allProducts?: Product[];
   categories: { id: string; name: string }[];
   onSuccess?: () => void;
   onUpdateExtras?: (
@@ -92,98 +96,6 @@ const FormSection = ({
   </motion.div>
 );
 
-const PlatformInput = ({
-  label,
-  id,
-  form,
-  icon: Icon,
-}: {
-  label: string;
-  id: string;
-  form: UseFormReturn<ProductFormValues>;
-  icon: React.ElementType; // Changed from any
-}) => {
-  const isPromo = id === "Direct" ? "isPromo" : `isPromo${id}`;
-  const discountField =
-    id === "Direct" ? "promoDiscount" : `promoDiscount${id}`;
-  const priceField =
-    id === "Direct"
-      ? "price"
-      : id === "PY"
-        ? "pricePedidosYa"
-        : id === "Rappi"
-          ? "priceRappi"
-          : "priceMP";
-
-  const watchPromo = form.watch(isPromo as Path<ProductFormValues>);
-  const watchPrice = form.watch(priceField as Path<ProductFormValues>);
-  const watchDiscount = form.watch(discountField as Path<ProductFormValues>);
-
-  return (
-    <div className="space-y-3 p-4 rounded-2xl bg-black/40 border border-white/5 hover:border-white/10 transition-colors">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="p-1 bg-white/5 rounded-md text-neutral-500">
-            <Icon className="h-3 w-3" />
-          </div>
-          <Label className="text-[10px] text-neutral-300 uppercase font-black tracking-tight">
-            {label}
-          </Label>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              {...form.register(isPromo as Path<ProductFormValues>)}
-              className="h-3.5 w-3.5 bg-zinc-900 border-white/10 rounded cursor-pointer accent-primary"
-              id={`${id}-promo-check`}
-            />
-            <label
-              htmlFor={`${id}-promo-check`}
-              className="text-[9px] font-black text-primary uppercase cursor-pointer"
-            >
-              Promo
-            </label>
-          </div>
-          {watchPromo && (
-            <div className="flex items-center bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20">
-              <input
-                type="number"
-                {...form.register(discountField as Path<ProductFormValues>)}
-                className="w-8 bg-transparent text-[10px] text-primary font-black focus:outline-none placeholder:text-primary/30"
-                placeholder="0"
-              />
-              <span className="text-[9px] font-black text-primary">%</span>
-            </div>
-          )}
-        </div>
-      </div>
-      <div className="relative">
-        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-600" />
-        <Input
-          type="number"
-          step="0.01"
-          {...form.register(priceField as Path<ProductFormValues>)}
-          className="bg-zinc-900/50 border-white/10 pl-9 h-10 text-sm font-black text-white focus:border-primary/50"
-          placeholder="0.00"
-        />
-        {watchPromo && (
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
-            <ChevronRight className="h-3 w-3 text-neutral-700" />
-            <span className="text-xs font-black text-primary">
-              $
-              {(
-                Number(watchPrice || 0) *
-                (1 - Number(watchDiscount || 0) / 100)
-              ).toFixed(0)}
-            </span>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
 export default function EditProductForm({
   product,
   allProducts,
@@ -200,18 +112,12 @@ export default function EditProductForm({
       name: product.name,
       description: product.description || "",
       price: Number(product.price),
-      pricePedidosYa: Number(product.pricePedidosYa) || 0,
-      priceRappi: Number(product.priceRappi) || 0,
-      priceMP: Number(product.priceMP) || 0,
+      priceApps: product.priceApps ? Number(product.priceApps) : 0,
       categoryId: product.categoryId || "",
       isPromo: product.isPromo || false,
       promoDiscount: product.promoDiscount || 0,
-      isPromoPY: product.isPromoPY || false,
-      promoDiscountPY: product.promoDiscountPY || 0,
-      isPromoRappi: product.isPromoRappi || false,
-      promoDiscountRappi: product.promoDiscountRappi || 0,
-      isPromoMP: product.isPromoMP || false,
-      promoDiscountMP: product.promoDiscountMP || 0,
+      isPromoApps: product.isPromoApps || false,
+      promoDiscountApps: product.promoDiscountApps || 0,
       showPublic: product.showPublic ?? true,
     },
   });
@@ -229,14 +135,12 @@ export default function EditProductForm({
     setLoading(true);
     const result = await updateProduct(product.id, data);
     if (result.success) {
-      // Update extras if applicable
       if (onUpdateExtras) {
         await onUpdateExtras(product.id, selectedExtras);
       }
-
       toast.success("Producto actualizado correctamente");
       if (onSuccess) onSuccess();
-      if (!onSuccess) window.location.reload();
+      else document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     } else {
       toast.error(result.error || "Error al actualizar el producto");
     }
@@ -249,195 +153,314 @@ export default function EditProductForm({
     );
   };
 
+  const watchPromo = form.watch("isPromo");
+  const watchPrice = form.watch("price");
+  const watchDiscount = form.watch("promoDiscount");
+  const watchPromoApps = form.watch("isPromoApps");
+  const watchPriceApps = form.watch("priceApps");
+  const watchDiscountApps = form.watch("promoDiscountApps");
+
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pb-2">
-      <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
-        {/* Basic Info Section */}
-        <FormSection title="Información General" icon={Package}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-black text-neutral-500 uppercase tracking-tighter px-1">
-                Nombre del Producto
-              </Label>
-              <Input
-                {...form.register("name")}
-                className="bg-zinc-900/50 border-white/10 h-11 font-bold text-white focus:border-primary/50 rounded-xl"
-                placeholder="Ej: Burger Tilin"
-              />
-              {form.formState.errors.name && (
-                <p className="text-[10px] font-bold text-red-500 px-1">
-                  {form.formState.errors.name.message}
-                </p>
-              )}
-            </div>
+    <Tabs defaultValue="config" className="w-full">
+      <TabsList className="bg-zinc-900 border border-white/5 p-1 rounded-2xl mb-6 w-full flex">
+        <TabsTrigger
+          value="config"
+          className="flex-1 rounded-xl py-2 text-xs font-bold uppercase tracking-wider data-[state=active]:bg-primary data-[state=active]:text-black transition-all"
+        >
+          Configuración
+        </TabsTrigger>
+        <TabsTrigger
+          value="combo"
+          className="flex-1 rounded-xl py-2 text-xs font-bold uppercase tracking-wider data-[state=active]:bg-primary data-[state=active]:text-black transition-all"
+        >
+          Componentes (Combo)
+        </TabsTrigger>
+      </TabsList>
 
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-black text-neutral-500 uppercase tracking-tighter px-1">
-                Categoría
-              </Label>
-              <div className="relative">
-                <LayoutGrid className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-600" />
-                <select
-                  {...form.register("categoryId")}
-                  className="w-full h-11 bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 text-sm font-bold text-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all appearance-none cursor-pointer hover:bg-white/10"
-                >
-                  <option value="" className="bg-zinc-950">
-                    Sin Categoría
-                  </option>
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id} className="bg-zinc-950">
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
+      <TabsContent value="config" className="mt-0">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
+            {/* Basic Info Section */}
+            <FormSection title="Información General" icon={Package}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black text-neutral-500 uppercase tracking-tighter px-1">
+                    Nombre del Producto
+                  </Label>
+                  <Input
+                    {...form.register("name")}
+                    className="bg-zinc-900/50 border-white/10 h-11 font-bold text-white focus:border-primary/50 rounded-xl"
+                    placeholder="Ej: Burger Tilin"
+                  />
+                  {form.formState.errors.name && (
+                    <p className="text-[10px] font-bold text-red-500 px-1">
+                      {form.formState.errors.name.message}
+                    </p>
+                  )}
+                </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-[10px] font-black text-neutral-500 uppercase tracking-tighter px-1">
-              Descripción
-            </Label>
-            <Textarea
-              {...form.register("description")}
-              className="bg-zinc-900/50 border-white/10 text-sm font-medium text-neutral-300 rounded-xl resize-none"
-              rows={2}
-              placeholder="Detalles sobre el producto, ingredientes, etc..."
-            />
-          </div>
-
-          <div className="flex items-center justify-between p-4 rounded-2xl bg-primary/5 border border-primary/20">
-            <div className="flex items-center gap-3">
-              <div
-                className={`p-2 rounded-lg ${form.watch("showPublic") ? "bg-primary/20 text-primary" : "bg-zinc-800 text-neutral-500"}`}
-              >
-                {form.watch("showPublic") ? (
-                  <Eye className="h-4 w-4" />
-                ) : (
-                  <EyeOff className="h-4 w-4" />
-                )}
-              </div>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-wider text-white">
-                  Visibilidad Pública (Menú)
-                </p>
-                <p className="text-[9px] font-bold text-neutral-500 uppercase">
-                  {form.watch("showPublic")
-                    ? "Visible en la app pública"
-                    : "Solo para venta interna"}
-                </p>
-              </div>
-            </div>
-            <input
-              type="checkbox"
-              {...form.register("showPublic")}
-              className="h-5 w-5 rounded-md border-white/10 bg-zinc-900 accent-primary cursor-pointer"
-            />
-          </div>
-        </FormSection>
-
-        {/* Extras Selection Section */}
-        {product.categoryId !== extrasCategory?.id &&
-          availableExtras &&
-          availableExtras.length > 0 && (
-            <FormSection
-              title="Extras Disponibles"
-              icon={PlusCircle}
-              delay={0.15}
-            >
-              <p className="text-[9px] font-bold text-neutral-500 uppercase px-1 -mt-2">
-                Selecciona qué adicionales se pueden agregar a este producto en
-                el menú público.
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {availableExtras.map((extra) => (
-                  <div
-                    key={extra.id}
-                    onClick={() => toggleExtra(extra.id)}
-                    className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
-                      selectedExtras.includes(extra.id)
-                        ? "bg-primary/10 border-primary/30 text-primary"
-                        : "bg-black/20 border-white/5 text-neutral-400 hover:border-white/10"
-                    }`}
-                  >
-                    <span className="text-[10px] font-black uppercase">
-                      {extra.name}
-                    </span>
-                    <div
-                      className={`h-4 w-4 rounded-full border flex items-center justify-center ${
-                        selectedExtras.includes(extra.id)
-                          ? "bg-primary border-primary text-black"
-                          : "border-white/10"
-                      }`}
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black text-neutral-500 uppercase tracking-tighter px-1">
+                    Categoría
+                  </Label>
+                  <div className="relative">
+                    <LayoutGrid className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-600" />
+                    <select
+                      {...form.register("categoryId")}
+                      className="w-full h-11 bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 text-sm font-bold text-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all appearance-none cursor-pointer hover:bg-white/10"
                     >
-                      {selectedExtras.includes(extra.id) && (
-                        <div className="h-2 w-2 bg-black rounded-full" />
-                      )}
-                    </div>
+                      <option value="" className="bg-zinc-950">
+                        Sin Categoría
+                      </option>
+                      {categories.map((cat) => (
+                        <option key={cat.id} value={cat.id} className="bg-zinc-950">
+                          {cat.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                ))}
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black text-neutral-500 uppercase tracking-tighter px-1">
+                  Descripción
+                </Label>
+                <Textarea
+                  {...form.register("description")}
+                  className="bg-zinc-900/50 border-white/10 text-sm font-medium text-neutral-300 rounded-xl resize-none"
+                  rows={2}
+                  placeholder="Detalles sobre el producto, ingredientes, etc..."
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-4 rounded-2xl bg-primary/5 border border-primary/20">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`p-2 rounded-lg ${form.watch("showPublic") ? "bg-primary/20 text-primary" : "bg-zinc-800 text-neutral-500"}`}
+                  >
+                    {form.watch("showPublic") ? (
+                      <Eye className="h-4 w-4" />
+                    ) : (
+                      <EyeOff className="h-4 w-4" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-wider text-white">
+                      Visibilidad Pública (Menú)
+                    </p>
+                    <p className="text-[9px] font-bold text-neutral-500 uppercase">
+                      {form.watch("showPublic")
+                        ? "Visible en la app pública"
+                        : "Solo para venta interna"}
+                    </p>
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  {...form.register("showPublic")}
+                  className="h-5 w-5 rounded-md border-white/10 bg-zinc-900 accent-primary cursor-pointer"
+                />
               </div>
             </FormSection>
-          )}
 
-        {/* Local Pricing Section */}
-        <FormSection title="Venta Directa" icon={Tag} delay={0.1}>
-          <PlatformInput
-            label="Precio Local / WhatsApp"
-            id="Direct"
-            form={form}
-            icon={DollarSign}
+            {/* Extras Selection Section */}
+            {product.categoryId !== extrasCategory?.id &&
+              availableExtras &&
+              availableExtras.length > 0 && (
+                <FormSection
+                  title="Extras Disponibles"
+                  icon={PlusCircle}
+                  delay={0.05}
+                >
+                  <p className="text-[9px] font-bold text-neutral-500 uppercase px-1 -mt-2">
+                    Selecciona qué adicionales se pueden agregar a este producto en
+                    el menú público.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {availableExtras.map((extra) => (
+                      <div
+                        key={extra.id}
+                        onClick={() => toggleExtra(extra.id)}
+                        className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
+                          selectedExtras.includes(extra.id)
+                            ? "bg-primary/10 border-primary/30 text-primary"
+                            : "bg-black/20 border-white/5 text-neutral-400 hover:border-white/10"
+                        }`}
+                      >
+                        <span className="text-[10px] font-black uppercase">
+                          {extra.name}
+                        </span>
+                        <div
+                          className={`h-4 w-4 rounded-full border flex items-center justify-center ${
+                            selectedExtras.includes(extra.id)
+                              ? "bg-primary border-primary text-black"
+                              : "border-white/10"
+                          }`}
+                        >
+                          {selectedExtras.includes(extra.id) && (
+                            <div className="h-2 w-2 bg-black rounded-full" />
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </FormSection>
+              )}
+
+            {/* Pricing Section (Local vs Apps) */}
+            <FormSection title="Precios & Ofertas" icon={Tag} delay={0.1}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                {/* Precio Local */}
+                <div className="space-y-4 p-4 bg-white/[0.02] border border-white/5 rounded-2xl">
+                  <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                    <Label className="text-gray-400 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+                      <Store className="h-3.5 w-3.5" /> Local
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        {...form.register("isPromo")}
+                        id="isPromo-edit"
+                        className="rounded border-white/10 bg-black/50 accent-primary cursor-pointer h-3.5 w-3.5"
+                      />
+                      <label htmlFor="isPromo-edit" className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest cursor-pointer">
+                        En oferta
+                      </label>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-500" />
+                      <Input
+                        type="number"
+                        step="0.01"
+                        {...form.register("price")}
+                        className="bg-zinc-900/50 border-white/10 text-white focus:border-primary/50 transition-colors pl-9 text-lg font-black"
+                        placeholder="0.00"
+                      />
+                      {watchPromo && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-right">
+                          <p className="text-[8px] font-bold text-neutral-500 uppercase">Final</p>
+                          <p className="text-xs font-black text-primary">
+                            ${(Number(watchPrice || 0) * (1 - Number(watchDiscount || 0) / 100)).toFixed(0)}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {watchPromo && (
+                      <div className="relative animate-in fade-in slide-in-from-top-2 duration-200">
+                        <Percent className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary" />
+                        <Input
+                          type="number"
+                          step="1"
+                          min="0"
+                          max="100"
+                          {...form.register("promoDiscount")}
+                          className="bg-primary/10 border-primary/20 text-primary focus:border-primary transition-colors pl-9 font-bold h-10"
+                          placeholder="20"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-primary/50 uppercase">
+                          Descuento
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Precio Apps */}
+                <div className="space-y-4 p-4 bg-white/[0.02] border border-white/5 rounded-2xl">
+                  <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                    <Label className="text-gray-400 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+                      <Smartphone className="h-3.5 w-3.5 text-blue-400" /> Apps (Peya, Rappi)
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        {...form.register("isPromoApps")}
+                        id="isPromoApps-edit"
+                        className="rounded border-white/10 bg-black/50 accent-blue-500 cursor-pointer h-3.5 w-3.5"
+                      />
+                      <label htmlFor="isPromoApps-edit" className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest cursor-pointer">
+                        En oferta
+                      </label>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-blue-400" />
+                      <Input
+                        type="number"
+                        step="0.01"
+                        {...form.register("priceApps")}
+                        className="bg-zinc-900/50 border-white/10 text-white focus:border-blue-500/50 transition-colors pl-9 text-lg font-black"
+                        placeholder="0.00"
+                      />
+                      {watchPromoApps && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-right">
+                          <p className="text-[8px] font-bold text-neutral-500 uppercase">Final</p>
+                          <p className="text-xs font-black text-blue-400">
+                            ${(Number(watchPriceApps || 0) * (1 - Number(watchDiscountApps || 0) / 100)).toFixed(0)}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {watchPromoApps && (
+                      <div className="relative animate-in fade-in slide-in-from-top-2 duration-200">
+                        <Percent className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-blue-400" />
+                        <Input
+                          type="number"
+                          step="1"
+                          min="0"
+                          max="100"
+                          {...form.register("promoDiscountApps")}
+                          className="bg-blue-500/10 border-blue-500/20 text-blue-400 focus:border-blue-500 transition-colors pl-9 font-bold h-10"
+                          placeholder="20"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-blue-400/50 uppercase">
+                          Descuento
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+            </FormSection>
+          </div>
+
+          <DialogFooter className="pt-4 border-t border-white/5">
+            <Button
+              type="submit"
+              disabled={loading}
+              className="bg-primary text-black font-black hover:bg-primary/90 w-full h-14 uppercase tracking-widest text-sm shadow-[0_0_30px_rgba(252,169,13,0.2)] rounded-2xl active:scale-[0.98] transition-all"
+            >
+              {loading ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="animate-spin h-4 w-4" />
+                  <span>Guardando Cambios...</span>
+                </div>
+              ) : (
+                "Actualizar Producto"
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
+      </TabsContent>
+
+      <TabsContent value="combo" className="mt-0">
+        <div className="p-1 min-h-[400px]">
+          <ComboSlotEditor
+            comboId={product.id}
+            allProducts={allProducts || []}
           />
-        </FormSection>
-
-        {/* Platform Pricing Section */}
-        <FormSection title="Plataformas de Envío" icon={Smartphone} delay={0.2}>
-          <div className="grid grid-cols-1 gap-3">
-            <PlatformInput
-              label="PedidosYa"
-              id="PY"
-              form={form}
-              icon={Percent}
-            />
-            <PlatformInput
-              label="Rappi"
-              id="Rappi"
-              form={form}
-              icon={Percent}
-            />
-            <PlatformInput
-              label="MercadoPago Delivery"
-              id="MP"
-              form={form}
-              icon={Percent}
-            />
-          </div>
-          <div className="flex items-center gap-2 p-3 bg-white/[0.02] rounded-xl border border-white/5">
-            <Info className="h-3.5 w-3.5 text-neutral-600" />
-            <p className="text-[9px] font-bold text-neutral-500 uppercase leading-none">
-              Configura precios más altos en apps para compensar el 35% de
-              comisión.
-            </p>
-          </div>
-        </FormSection>
-      </div>
-
-      <DialogFooter className="pt-4 border-t border-white/5">
-        <Button
-          type="submit"
-          disabled={loading}
-          className="bg-primary text-black font-black hover:bg-primary/90 w-full h-14 uppercase tracking-widest text-sm shadow-[0_0_30px_rgba(252,169,13,0.2)] rounded-2xl active:scale-[0.98] transition-all"
-        >
-          {loading ? (
-            <div className="flex items-center gap-2">
-              <Loader2 className="animate-spin h-4 w-4" />
-              <span>Guardando Cambios...</span>
-            </div>
-          ) : (
-            "Actualizar Producto"
-          )}
-        </Button>
-      </DialogFooter>
-    </form>
+        </div>
+      </TabsContent>
+    </Tabs>
   );
 }

@@ -111,9 +111,83 @@ body {
     animation: fade-in-up 0.6s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
+  /* Dense data table */
+  .data-table {
+    @apply bg-neutral-950 border border-white/5 rounded-2xl overflow-hidden;
+  }
+
+  .data-table-header {
+    @apply px-4 py-2.5 border-b border-white/5 bg-white/[0.02];
+  }
+
+  .data-table-row {
+    @apply px-4 py-3 transition-colors hover:bg-white/[0.02] border-b border-white/[0.04] last:border-0;
+  }
+
+  .data-table-label {
+    @apply text-[9px] font-bold text-neutral-600 uppercase tracking-wider;
+  }
+
+  /* KPI row */
+  .kpi-card {
+    @apply bg-neutral-950 border border-white/5 rounded-xl p-3 flex flex-col gap-1 hover:border-primary/20 transition-colors;
+  }
+
+  .kpi-label {
+    @apply text-[9px] font-bold text-neutral-600 uppercase tracking-widest truncate;
+  }
+
+  .kpi-value {
+    @apply text-xl font-black tracking-tight;
+  }
+
+  .kpi-sub {
+    @apply text-[9px] text-neutral-700 font-medium;
+  }
+
+  /* Status badges */
+  .badge-ok {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-green-500/10 text-green-400 border border-green-500/20;
+  }
+
+  .badge-warning {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20;
+  }
+
+  .badge-critical {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-red-500/10 text-red-400 border border-red-500/20;
+  }
+
+  .badge-promo {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-primary/10 text-primary border border-primary/20;
+  }
+
+  .badge-inactive {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-neutral-800 text-neutral-500 border border-white/5;
+  }
+
+  /* Inline editable input */
+  .inline-edit-input {
+    @apply bg-white/10 border border-primary/50 rounded px-1.5 py-0.5 text-xs text-white outline-none tabular-nums transition-colors focus:border-primary;
+  }
+
+  /* Bulk action bar */
+  .bulk-action-bar {
+    @apply flex items-center gap-2 px-4 py-2.5 bg-primary/5 border border-primary/20 rounded-xl;
+  }
+
+  /* Action button row (hover-reveal) */
+  .action-btn {
+    @apply h-7 w-7 rounded-lg bg-white/5 flex items-center justify-center text-neutral-500 hover:bg-white/10 hover:text-white transition-colors opacity-0 group-hover:opacity-100;
+  }
+
+  .action-btn-danger {
+    @apply h-7 w-7 rounded-lg bg-white/5 flex items-center justify-center text-neutral-500 hover:bg-red-500/10 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100;
+  }
+
   /* Custom Scrollbar */
   .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
+    width: 4px;
   }
   .custom-scrollbar::-webkit-scrollbar-track {
     background: transparent;
@@ -124,7 +198,22 @@ body {
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     @apply bg-primary/40;
   }
+
+  /* Hide scrollbar but allow scrolling */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Compact form field */
+  .field-compact {
+    @apply w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-primary/50 transition-colors placeholder:text-neutral-700;
+  }
 }
+
 
 @keyframes fade-in-up {
   0% {

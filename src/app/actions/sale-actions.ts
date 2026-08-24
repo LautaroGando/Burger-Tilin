@@ -7,11 +7,19 @@ import { autoTrain } from "./ai-actions";
 import { getStartOfDayInArgentina } from "@/lib/utils";
 import { normalizePlatformName } from "@/lib/constants";
 
+const fulfillmentSchema = z.object({
+  slotId: z.string(),
+  configuredProductId: z.string(),
+  deliveredProductId: z.string(),
+  replacementReason: z.string().optional().nullable(),
+});
+
 // Schema for the sale items
 const saleItemSchema = z.object({
   productId: z.string(),
   quantity: z.number().min(1),
   unitPrice: z.number().min(0), // Snapshot of price at moment of sale
+  fulfillments: z.array(fulfillmentSchema).optional(),
 });
 
 // Schema for the full sale
@@ -55,7 +63,7 @@ export async function createSale(data: CreateSaleValues) {
           discount: commissionToStore,
           paymentMethod: validated.paymentMethod,
           channel: validated.channel || "COUNTER",
-          status: "PENDING", // Always start as PENDING so it goes to Kitchen
+          status: "COMPLETED", // Sales go directly to completed — Kitchen module removed
           clientName: validated.clientName,
           customerId: validated.customerId, // Link to registered customer
           items: {
@@ -63,6 +71,18 @@ export async function createSale(data: CreateSaleValues) {
               productId: item.productId,
               quantity: item.quantity,
               unitPrice: item.unitPrice,
+              ...(item.fulfillments && item.fulfillments.length > 0
+                ? {
+                    fulfillments: {
+                      create: item.fulfillments.map((f) => ({
+                        slotId: f.slotId,
+                        configuredProductId: f.configuredProductId,
+                        deliveredProductId: f.deliveredProductId,
+                        replacementReason: f.replacementReason,
+                      })),
+                    },
+                  }
+                : {}),
             })),
           },
         },
@@ -81,23 +101,32 @@ export async function createSale(data: CreateSaleValues) {
 
       // 2. Stock Deduction Logic
       for (const item of validated.items) {
-        // Get recipe for this product
-        const recipeItems = await tx.recipeItem.findMany({
-          where: { productId: item.productId },
-        });
+        // We deduct stock for the main product (e.g. combo packaging/base)
+        // AND for the delivered products chosen in the slots.
+        const productsToDeduct = [
+          item.productId,
+          ...(item.fulfillments?.map((f) => f.deliveredProductId) || [])
+        ];
 
-        // Deduct each ingredient
-        for (const recipeItem of recipeItems) {
-          const deductionAmount = Number(recipeItem.quantity) * item.quantity;
-
-          await tx.ingredient.update({
-            where: { id: recipeItem.ingredientId },
-            data: {
-              stock: {
-                decrement: deductionAmount,
-              },
-            },
+        for (const pid of productsToDeduct) {
+          // Get recipe for this product
+          const recipeItems = await tx.recipeItem.findMany({
+            where: { productId: pid },
           });
+
+          // Deduct each ingredient
+          for (const recipeItem of recipeItems) {
+            const deductionAmount = Number(recipeItem.quantity) * item.quantity;
+
+            await tx.ingredient.update({
+              where: { id: recipeItem.ingredientId },
+              data: {
+                stock: {
+                  decrement: deductionAmount,
+                },
+              },
+            });
+          }
         }
       }
     });
@@ -315,5 +344,74 @@ export async function deleteSale(id: string) {
   } catch (error) {
     console.error("Delete Sale Error:", error);
     return { success: false, error: "Error al eliminar la venta" };
+  }
+}
+
+// ── Weekly sales for dashboard KPI ────────────────────────────────────────────
+export async function getWeeklySales() {
+  try {
+    const now = new Date();
+    const argNow = new Date(
+      now.toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" })
+    );
+    const startOfWeek = new Date(argNow);
+    const day = startOfWeek.getDay();
+    const diff = day === 0 ? -6 : 1 - day; // Monday
+    startOfWeek.setDate(startOfWeek.getDate() + diff);
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    const sales = await prisma.sale.findMany({
+      where: {
+        date: { gte: startOfWeek },
+        status: "COMPLETED",
+      },
+    });
+
+    const total = sales.reduce((sum, s) => sum + Number(s.total), 0);
+    const count = sales.length;
+
+    return { success: true, data: { total, count } };
+  } catch (error) {
+    console.error("Weekly Sales Error:", error);
+    return { success: false, data: { total: 0, count: 0 } };
+  }
+}
+
+// ── Sales velocity per day (last N days) ─────────────────────────────────────
+export async function getSalesVelocity(days: number = 7) {
+  try {
+    const from = new Date();
+    from.setDate(from.getDate() - days);
+    from.setHours(0, 0, 0, 0);
+
+    const sales = await prisma.sale.findMany({
+      where: {
+        date: { gte: from },
+        status: "COMPLETED",
+      },
+    });
+
+    const map: Record<string, { date: string; total: number; count: number }> = {};
+
+    sales.forEach((s) => {
+      const d = new Date(s.date);
+      const key = d.toLocaleDateString("es-AR", {
+        day: "2-digit",
+        month: "2-digit",
+        timeZone: "America/Argentina/Buenos_Aires",
+      });
+      if (!map[key]) map[key] = { date: key, total: 0, count: 0 };
+      map[key].total += Number(s.total);
+      map[key].count += 1;
+    });
+
+    const data = Object.values(map).sort((a, b) =>
+      a.date.localeCompare(b.date)
+    );
+
+    return { success: true, data };
+  } catch (error) {
+    console.error("Sales Velocity Error:", error);
+    return { success: false, data: [] };
   }
 }

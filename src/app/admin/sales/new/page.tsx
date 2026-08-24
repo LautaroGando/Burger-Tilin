@@ -37,63 +37,27 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { generateWhatsAppLink } from "@/lib/whatsapp";
 import UpsellRecommender from "./UpsellRecommender";
+import { ComboComponentSelector } from "@/app/sales/new/ComboComponentSelector";
+
+import { Product } from "@/lib/types";
 
 // Types
-type Product = {
-  id: string;
-  name: string;
-  price: number;
-  pricePedidosYa: number | null;
-  priceRappi: number | null;
-  priceMP: number | null;
-  isPromo: boolean;
-  promoDiscount: number | null;
-  isPromoPY: boolean;
-  promoDiscountPY: number | null;
-  isPromoRappi: boolean;
-  promoDiscountRappi: number | null;
-  isPromoMP: boolean;
-  promoDiscountMP: number | null;
-  description: string | null;
-  categoryId?: string | null;
-};
-
 type CartItem = {
+  cartItemId: string;
   productId: string;
   productName: string;
   price: number;
   quantity: number;
+  fulfillments?: { slotId: string, configuredProductId: string, deliveredProductId: string }[];
 };
 
-// Helper to calculate price based on channel and promotions
+// Helper to calculate price — same price across all channels, single promo
 const calculateItemPrice = (product: Product, channel: string) => {
-  let basePrice = Number(product.price);
-  let discount = 0;
-  let isPromoActive = false;
-
-  if (channel === "RAPPI") {
-    basePrice = Number(product.priceRappi || product.price);
-    isPromoActive = product.isPromoRappi;
-    discount = Number(product.promoDiscountRappi || 0);
-  } else if (channel === "PEYA") {
-    basePrice = Number(product.pricePedidosYa || product.price);
-    isPromoActive = product.isPromoPY;
-    discount = Number(product.promoDiscountPY || 0);
-  } else if (channel === "MERCADOPAGO") {
-    basePrice = Number(product.priceMP || product.price);
-    isPromoActive = product.isPromoMP;
-    discount = Number(product.promoDiscountMP || 0);
-  } else {
-    // COUNTER, WHATSAPP, etc use direct price
-    basePrice = Number(product.price);
-    isPromoActive = product.isPromo;
-    discount = Number(product.promoDiscount || 0);
-  }
-
-  const finalPrice = isPromoActive
-    ? basePrice * (1 - discount / 100)
-    : basePrice;
-
+  const isAppChannel = ["PEYA", "RAPPI", "MERCADOPAGO"].includes(channel);
+  const basePrice = isAppChannel && product.priceApps ? Number(product.priceApps) : Number(product.price);
+  const isPromoActive = isAppChannel ? product.isPromoApps : product.isPromo;
+  const discount = isAppChannel ? Number(product.promoDiscountApps || 0) : Number(product.promoDiscount || 0);
+  const finalPrice = isPromoActive ? basePrice * (1 - discount / 100) : basePrice;
   return { basePrice, finalPrice, discount, isPromoActive };
 };
 
@@ -104,6 +68,10 @@ export default function NewSalePage() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Combo Selector State
+  const [selectedComboProduct, setSelectedComboProduct] = useState<Product | null>(null);
+  const [isComboSelectorOpen, setIsComboSelectorOpen] = useState(false);
 
   // Ticket Data
   const [clientName, setClientName] = useState("");
@@ -174,14 +142,25 @@ export default function NewSalePage() {
     });
   }, [products, selectedCategoryId]);
 
-  const addToCart = (product: Product) => {
+  const addToCart = (product: Product, fulfillments?: { slotId: string, configuredProductId: string, deliveredProductId: string }[]) => {
+    if (product.comboSlots && product.comboSlots.length > 0 && !fulfillments) {
+      setSelectedComboProduct(product);
+      setIsComboSelectorOpen(true);
+      return;
+    }
+
     setCart((prev) => {
-      const existing = prev.find((item) => item.productId === product.id);
       const { finalPrice } = calculateItemPrice(product, channel);
+      const fulfillmentHash = fulfillments 
+        ? fulfillments.map(f => f.deliveredProductId).sort().join('-') 
+        : '';
+      const cartItemId = `${product.id}-${fulfillmentHash}`;
+
+      const existing = prev.find((item) => item.cartItemId === cartItemId);
 
       if (existing) {
         return prev.map((item) =>
-          item.productId === product.id
+          item.cartItemId === cartItemId
             ? { ...item, quantity: item.quantity + 1, price: finalPrice }
             : item,
         );
@@ -189,20 +168,22 @@ export default function NewSalePage() {
       return [
         ...prev,
         {
+          cartItemId,
           productId: product.id,
           productName: product.name,
           price: finalPrice,
           quantity: 1,
+          fulfillments,
         },
       ];
     });
   };
 
-  const updateQuantity = (productId: string, delta: number) => {
+  const updateQuantity = (cartItemId: string, delta: number) => {
     setCart((prev) =>
       prev
         .map((item) => {
-          if (item.productId === productId) {
+          if (item.cartItemId === cartItemId) {
             return { ...item, quantity: Math.max(0, item.quantity + delta) };
           }
           return item;
@@ -226,6 +207,7 @@ export default function NewSalePage() {
         productId: item.productId,
         quantity: item.quantity,
         unitPrice: item.price,
+        fulfillments: item.fulfillments,
       })),
       paymentMethod,
       total: total, // Correct: send net total after all discounts to the server
@@ -262,6 +244,21 @@ export default function NewSalePage() {
 
   return (
     <div className="flex flex-col lg:flex-row h-screen bg-black text-white selection:bg-primary selection:text-black overflow-hidden relative">
+      {selectedComboProduct && (
+        <ComboComponentSelector
+          combo={selectedComboProduct}
+          isOpen={isComboSelectorOpen}
+          onClose={() => {
+            setIsComboSelectorOpen(false);
+            setSelectedComboProduct(null);
+          }}
+          onConfirm={(fulfillments) => {
+            addToCart(selectedComboProduct, fulfillments);
+            setIsComboSelectorOpen(false);
+            setSelectedComboProduct(null);
+          }}
+        />
+      )}
       {/* --- LEFT SIDE: PRODUCTS --- */}
       <div className="flex-1 flex flex-col h-full overflow-hidden relative z-0">
         <div className="flex-1 overflow-y-auto custom-scrollbar p-3 sm:p-6 lg:p-8 pb-32 lg:pb-8">
@@ -471,20 +468,28 @@ export default function NewSalePage() {
               <>
                 {cart.map((item) => (
                   <div
-                    key={item.productId}
+                    key={item.cartItemId}
                     className="group flex items-center justify-between p-3 rounded-2xl bg-zinc-900/50 border border-white/5 hover:border-white/10 transition-colors"
                   >
                     <div className="flex-1 min-w-0 pr-4">
                       <p className="text-white font-bold text-sm mb-0.5 truncate">
                         {item.productName}
                       </p>
+                      {item.fulfillments && item.fulfillments.length > 0 && (
+                        <p className="text-[10px] text-neutral-500 mb-1 leading-tight">
+                          {item.fulfillments.map(f => {
+                            const p = products.find(p => p.id === f.deliveredProductId);
+                            return p ? p.name : '';
+                          }).filter(Boolean).join(', ')}
+                        </p>
+                      )}
                       <p className="text-xs text-primary font-bold font-mono">
                         ${(item.price * item.quantity).toFixed(2)}
                       </p>
                     </div>
                     <div className="flex items-center gap-2 bg-black/40 rounded-xl p-1 border border-white/5 shrink-0">
                       <button
-                        onClick={() => updateQuantity(item.productId, -1)}
+                        onClick={() => updateQuantity(item.cartItemId, -1)}
                         className="h-8 w-8 flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
                       >
                         <Minus className="h-4 w-4" />
@@ -493,7 +498,7 @@ export default function NewSalePage() {
                         {item.quantity}
                       </span>
                       <button
-                        onClick={() => updateQuantity(item.productId, 1)}
+                        onClick={() => updateQuantity(item.cartItemId, 1)}
                         className="h-8 w-8 flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
                       >
                         <Plus className="h-4 w-4" />

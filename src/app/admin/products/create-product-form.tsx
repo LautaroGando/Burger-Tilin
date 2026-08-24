@@ -11,17 +11,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   Loader2,
   Package,
   LayoutGrid,
-  Tag,
-  DollarSign,
-  Smartphone,
   PlusCircle,
   Eye,
   EyeOff,
+  Percent,
+  Store,
+  Smartphone,
+  DollarSign,
 } from "lucide-react";
 import { DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -31,8 +31,7 @@ type ProductFormValues = z.infer<typeof productSchema>;
 
 import { Product } from "@/lib/types";
 
-export default function CreateProductForm() {
-  const router = useRouter();
+export default function CreateProductForm({ onSuccess }: { onSuccess?: () => void }) {
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>(
     [],
@@ -47,18 +46,13 @@ export default function CreateProductForm() {
       name: "",
       description: "",
       price: 0,
-      pricePedidosYa: 0,
-      priceRappi: 0,
-      priceMP: 0,
+      priceApps: 0,
       categoryId: "",
+      isActive: true,
       isPromo: false,
       promoDiscount: 0,
-      isPromoPY: false,
-      promoDiscountPY: 0,
-      isPromoRappi: false,
-      promoDiscountRappi: 0,
-      isPromoMP: false,
-      promoDiscountMP: 0,
+      isPromoApps: false,
+      promoDiscountApps: 0,
       showPublic: true,
     },
   });
@@ -89,7 +83,8 @@ export default function CreateProductForm() {
       toast.success("Producto creado con éxito");
       form.reset();
       setSelectedExtras([]);
-      window.location.reload();
+      if (onSuccess) onSuccess();
+      else document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     } else {
       toast.error(result.error || "Error al crear producto");
     }
@@ -130,47 +125,69 @@ export default function CreateProductForm() {
           <Label className="text-gray-400 text-xs font-bold uppercase tracking-wider">
             Categoría
           </Label>
-          <select
-            {...form.register("categoryId")}
-            className="flex h-10 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all cursor-pointer hover:bg-white/10"
-          >
-            <option value="" className="bg-zinc-950">
-              Sin Categoría
-            </option>
-            {categories.map((cat) => (
-              <option key={cat.id} value={cat.id} className="bg-zinc-950">
-                {cat.name}
+          <div className="relative">
+            <LayoutGrid className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-600 pointer-events-none" />
+            <select
+              {...form.register("categoryId")}
+              className="flex h-10 w-full rounded-xl border border-white/10 bg-white/5 pl-10 pr-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all cursor-pointer hover:bg-white/10"
+            >
+              <option value="" className="bg-zinc-950">
+                Sin Categoría
               </option>
-            ))}
-          </select>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id} className="bg-zinc-950">
+                  {cat.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <Label className="text-gray-400 text-xs font-bold uppercase tracking-wider">
-            Precio de Venta Directa
-          </Label>
-          <div className="flex items-center gap-4">
+      {/* Precios (Local y Apps) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        
+        {/* Precio Local */}
+        <div className="space-y-4 p-4 bg-white/5 border border-white/10 rounded-2xl">
+          <div className="flex items-center justify-between border-b border-white/10 pb-3">
+            <Label className="text-gray-400 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+              <Store className="h-3.5 w-3.5" /> Precio Local
+            </Label>
             <div className="flex items-center gap-2">
               <input
                 type="checkbox"
                 {...form.register("isPromo")}
-                className="h-4 w-4 bg-zinc-900 border-white/10 rounded cursor-pointer"
+                className="rounded border-white/20 bg-black/50 accent-primary cursor-pointer h-3.5 w-3.5"
               />
-              <span className="text-[10px] font-bold text-primary uppercase">
-                Promoción
+              <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+                En oferta
               </span>
             </div>
+          </div>
+          
+          <div className="space-y-4">
+            <div className="relative">
+              <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-500" />
+              <Input
+                type="number"
+                step="0.01"
+                {...form.register("price")}
+                className="bg-zinc-950 border-white/10 text-white focus:border-primary/50 transition-colors pl-9 text-lg font-bold"
+                placeholder="0.00"
+              />
+            </div>
+            
             {form.watch("isPromo") && (
-              <div className="flex items-center gap-2 bg-primary/10 px-2 py-1 rounded-lg border border-primary/20">
-                <span className="text-[10px] font-bold text-primary">%</span>
+              <div className="flex items-center gap-1.5 bg-primary/10 px-2 py-1 rounded-lg border border-primary/20">
                 <input
                   type="number"
                   {...form.register("promoDiscount")}
                   className="w-10 bg-transparent text-xs text-primary font-black focus:outline-none"
                   placeholder="0"
+                  min={1}
+                  max={99}
                 />
+                <Percent className="h-3 w-3 text-primary" />
               </div>
             )}
           </div>
@@ -184,7 +201,7 @@ export default function CreateProductForm() {
             placeholder="0.00"
           />
           {form.watch("isPromo") && (
-            <div className="text-right">
+            <div className="text-right shrink-0">
               <p className="text-[10px] font-bold text-neutral-500 uppercase">
                 Final
               </p>
@@ -200,170 +217,7 @@ export default function CreateProductForm() {
         </div>
       </div>
 
-      <div className="pt-4 border-t border-white/5 space-y-4">
-        <Label className="text-[10px] uppercase font-bold text-neutral-500 tracking-widest block">
-          Precios por Plataforma & Promociones
-        </Label>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {/* PedidosYa */}
-          <div className="space-y-3 p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors group/card">
-            <div className="flex items-center justify-between">
-              <Label className="text-[10px] text-neutral-500 uppercase font-black tracking-widest group-hover/card:text-primary transition-colors">
-                PedidosYa
-              </Label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  {...form.register("isPromoPY")}
-                  className="h-3 w-3 cursor-pointer accent-primary"
-                />
-                {form.watch("isPromoPY") && (
-                  <div className="flex items-center bg-primary/20 px-1.5 py-0.5 rounded border border-primary/30">
-                    <input
-                      type="number"
-                      {...form.register("promoDiscountPY")}
-                      className="w-8 bg-transparent text-[10px] text-primary font-black focus:outline-none text-center"
-                      placeholder="%"
-                    />
-                    <span className="text-[8px] font-black text-primary">
-                      %
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-neutral-600">
-                  $
-                </span>
-                <Input
-                  type="number"
-                  step="0.01"
-                  {...form.register("pricePedidosYa")}
-                  className="bg-black/40 border-white/5 h-10 pl-6 text-sm text-white font-black rounded-xl focus:border-primary/50 transition-all"
-                  placeholder="0.00"
-                />
-              </div>
-              {form.watch("isPromoPY") && (
-                <p className="text-[10px] font-black text-primary text-right italic tracking-tighter">
-                  NETO: $
-                  {(
-                    Number(form.watch("pricePedidosYa") || 0) *
-                    (1 - Number(form.watch("promoDiscountPY") || 0) / 100)
-                  ).toFixed(0)}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Rappi */}
-          <div className="space-y-3 p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors group/card">
-            <div className="flex items-center justify-between">
-              <Label className="text-[10px] text-neutral-500 uppercase font-black tracking-widest group-hover/card:text-[#FF441F] transition-colors">
-                Rappi
-              </Label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  {...form.register("isPromoRappi")}
-                  className="h-3 w-3 cursor-pointer accent-[#FF441F]"
-                />
-                {form.watch("isPromoRappi") && (
-                  <div className="flex items-center bg-[#FF441F]/20 px-1.5 py-0.5 rounded border border-[#FF441F]/30">
-                    <input
-                      type="number"
-                      {...form.register("promoDiscountRappi")}
-                      className="w-8 bg-transparent text-[10px] text-[#FF441F] font-black focus:outline-none text-center"
-                      placeholder="%"
-                    />
-                    <span className="text-[8px] font-black text-[#FF441F]">
-                      %
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-neutral-600">
-                  $
-                </span>
-                <Input
-                  type="number"
-                  step="0.01"
-                  {...form.register("priceRappi")}
-                  className="bg-black/40 border-white/5 h-10 pl-6 text-sm text-white font-black rounded-xl focus:border-[#FF441F]/50 transition-all"
-                  placeholder="0.00"
-                />
-              </div>
-              {form.watch("isPromoRappi") && (
-                <p className="text-[10px] font-black text-[#FF441F] text-right italic tracking-tighter">
-                  NETO: $
-                  {(
-                    Number(form.watch("priceRappi") || 0) *
-                    (1 - Number(form.watch("promoDiscountRappi") || 0) / 100)
-                  ).toFixed(0)}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* MercadoPago */}
-          <div className="space-y-3 p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors group/card">
-            <div className="flex items-center justify-between">
-              <Label className="text-[10px] text-neutral-500 uppercase font-black tracking-widest group-hover/card:text-blue-400 transition-colors">
-                MercadoPago
-              </Label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  {...form.register("isPromoMP")}
-                  className="h-3 w-3 cursor-pointer accent-blue-400"
-                />
-                {form.watch("isPromoMP") && (
-                  <div className="flex items-center bg-blue-400/20 px-1.5 py-0.5 rounded border border-blue-400/30">
-                    <input
-                      type="number"
-                      {...form.register("promoDiscountMP")}
-                      className="w-8 bg-transparent text-[10px] text-blue-400 font-black focus:outline-none text-center"
-                      placeholder="%"
-                    />
-                    <span className="text-[8px] font-black text-blue-400">
-                      %
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-neutral-600">
-                  $
-                </span>
-                <Input
-                  type="number"
-                  step="0.01"
-                  {...form.register("priceMP")}
-                  className="bg-black/40 border-white/5 h-10 pl-6 text-sm text-white font-black rounded-xl focus:border-blue-400/50 transition-all"
-                  placeholder="0.00"
-                />
-              </div>
-              {form.watch("isPromoMP") && (
-                <p className="text-[10px] font-black text-blue-400 text-right italic tracking-tighter">
-                  NETO: $
-                  {(
-                    Number(form.watch("priceMP") || 0) *
-                    (1 - Number(form.watch("promoDiscountMP") || 0) / 100)
-                  ).toFixed(0)}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
+      {/* Public visibility */}
       <div className="flex items-center justify-between p-4 rounded-2xl bg-primary/5 border border-primary/20">
         <div className="flex items-center gap-3">
           <div

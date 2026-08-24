@@ -8,6 +8,7 @@ import {
   addIngredientToRecipe,
   removeIngredientFromRecipe,
 } from "@/app/actions/recipe-actions";
+import { updateProductPrice } from "@/app/actions/product-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -17,8 +18,10 @@ import {
   ChefHat,
   Info,
   PlusCircle,
+  Save,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 
 const schema = z.object({
   ingredientId: z.string().min(1, "Selecciona un insumo"),
@@ -42,16 +45,20 @@ interface RecipeItem {
 
 interface RecipeEditorProps {
   productId: string;
+  productPrice?: number;
   existingRecipe: RecipeItem[];
   availableIngredients: Ingredient[];
 }
 
 export default function RecipeEditor({
   productId,
+  productPrice = 0,
   existingRecipe,
   availableIngredients,
 }: RecipeEditorProps) {
   const [loading, setLoading] = useState(false);
+  const [updatingPrice, setUpdatingPrice] = useState(false);
+  
   const form = useForm<FormValues>({
     resolver: zodResolver(schema) as unknown as Resolver<FormValues>,
     defaultValues: {
@@ -64,6 +71,12 @@ export default function RecipeEditor({
     return sum + Number(item.ingredient.cost) * Number(item.quantity);
   }, 0);
 
+  const margin = productPrice > 0 ? ((productPrice - totalCost) / productPrice) * 100 : 0;
+  
+  // Suggested price based on 30% food cost (~70% margin)
+  const suggestedPrice = totalCost / 0.3;
+  const [newPrice, setNewPrice] = useState<string>(Math.round(suggestedPrice).toString());
+
   async function onSubmit(data: FormValues) {
     setLoading(true);
     const res = await addIngredientToRecipe({
@@ -74,6 +87,8 @@ export default function RecipeEditor({
 
     if (res.success) {
       form.reset();
+      // Reset suggested price on add
+      setNewPrice(Math.round(((totalCost + (Number(availableIngredients.find(i => i.id === data.ingredientId)?.cost || 0) * data.quantity)) / 0.3)).toString());
     }
     setLoading(false);
   }
@@ -81,32 +96,76 @@ export default function RecipeEditor({
   async function handleDelete(id: string) {
     await removeIngredientFromRecipe(id);
   }
+  
+  async function handleUpdatePrice() {
+    if (!newPrice || isNaN(Number(newPrice))) return;
+    setUpdatingPrice(true);
+    const res = await updateProductPrice(productId, Number(newPrice));
+    if (res.success) {
+      toast.success("Precio actualizado exitosamente");
+    } else {
+      toast.error(res.error || "Error al actualizar precio");
+    }
+    setUpdatingPrice(false);
+  }
 
   return (
     <div className="space-y-8 py-2">
       {/* Total Cost Header */}
-      <div className="relative overflow-hidden p-6 rounded-3xl bg-zinc-900/50 border border-white/5 shadow-2xl group">
+      <div className="relative overflow-hidden rounded-3xl bg-zinc-900/50 border border-white/5 shadow-2xl group flex flex-col sm:flex-row">
         <div className="absolute -top-12 -right-12 w-24 h-24 bg-primary/10 blur-3xl rounded-full group-hover:bg-primary/20 transition-all duration-500" />
-        <div className="relative flex items-center justify-between">
-          <div className="space-y-1">
+        
+        <div className="p-6 flex-1 relative border-b sm:border-b-0 sm:border-r border-white/5">
+          <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <Calculator className="h-4 w-4 text-primary" />
               <span className="text-xs font-black text-neutral-500 uppercase tracking-widest">
                 Costo de Producción
               </span>
             </div>
-            <div className="flex items-baseline gap-1">
-              <span className="text-4xl font-black text-white">$</span>
-              <span className="text-4xl font-black text-white">
-                {totalCost.toLocaleString(undefined, {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
+          </div>
+          <div className="flex items-baseline gap-1">
+            <span className="text-4xl font-black text-white">$</span>
+            <span className="text-4xl font-black text-white">
+              {totalCost.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </span>
+          </div>
+        </div>
+
+        <div className="p-6 flex-1 relative bg-black/20 flex flex-col justify-between">
+          <div>
+            <span className="text-xs font-black text-neutral-500 uppercase tracking-widest">
+              Margen Actual
+            </span>
+            <div className="flex items-baseline gap-2 mt-1">
+              <span className={`text-2xl font-black ${margin > 50 ? 'text-green-400' : margin > 30 ? 'text-primary' : 'text-red-400'}`}>
+                {margin.toFixed(1)}%
+              </span>
+              <span className="text-xs font-bold text-neutral-500 line-through">
+                ${productPrice.toFixed(2)}
               </span>
             </div>
           </div>
-          <div className="h-12 w-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-            <ChefHat className="h-6 w-6 text-primary" />
+          
+          <div className="mt-4 pt-4 border-t border-white/5 flex gap-2 items-center">
+            <Input 
+              type="number"
+              value={newPrice}
+              onChange={(e) => setNewPrice(e.target.value)}
+              className="h-9 bg-black/50 border-white/10 text-white font-bold"
+              placeholder="Sugerido..."
+            />
+            <Button 
+              size="sm"
+              onClick={handleUpdatePrice}
+              disabled={updatingPrice || !newPrice}
+              className="h-9 bg-primary text-black hover:bg-primary/90 font-bold px-3 shrink-0"
+            >
+              {updatingPrice ? <div className="h-4 w-4 border-2 border-black/20 border-t-black rounded-full animate-spin" /> : <Save className="h-4 w-4" />}
+            </Button>
           </div>
         </div>
       </div>

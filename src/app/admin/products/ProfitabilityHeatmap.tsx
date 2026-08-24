@@ -60,7 +60,7 @@ export default function ProfitabilityHeatmap() {
       <DialogTrigger asChild>
         <Button
           variant="outline"
-          className="h-12 border-orange-500/20 bg-orange-500/5 text-orange-500 hover:bg-orange-500/20 hover:border-orange-500/50 font-bold uppercase tracking-wider group"
+          className="rounded-full h-9 px-4 text-xs font-semibold border-orange-500/20 bg-orange-500/5 text-orange-500 hover:bg-orange-500/20 hover:border-orange-500/50 uppercase tracking-wider group transition-colors"
         >
           <Flame className="mr-2 h-4 w-4 group-hover:animate-bounce" />
           Mapa de Rentabilidad

@@ -81,7 +81,7 @@ export default function SmartPurchaseModal() {
       <DialogTrigger asChild>
         <Button
           variant="outline"
-          className="h-12 border-primary/20 bg-primary/5 text-primary hover:bg-primary/20 hover:border-primary/50 font-bold uppercase tracking-wider relative group"
+          className="rounded-full h-9 px-4 text-xs font-semibold border-primary/20 bg-primary/5 text-primary hover:bg-primary/20 hover:border-primary/50 uppercase tracking-wider relative group transition-colors"
         >
           <ShoppingCart className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" />
           Compra Inteligente

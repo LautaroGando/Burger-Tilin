@@ -251,7 +251,7 @@ export async function getSalesHistory(filter: SalesHistoryFilter): Promise<{
         date: {
           gte: startDate,
         },
-        status: { in: ["COMPLETED", "PENDING"] }, // Show pending too? Maybe. Usually history is completed. Let's show all valid.
+        status: "COMPLETED",
       },
       orderBy: {
         date: "desc",
@@ -410,17 +410,7 @@ export async function getSalesHistory(filter: SalesHistoryFilter): Promise<{
         product: {
           ...item.product,
           price: Number(item.product.price),
-          pricePedidosYa: item.product.pricePedidosYa
-            ? Number(item.product.pricePedidosYa)
-            : null,
-          priceRappi: item.product.priceRappi
-            ? Number(item.product.priceRappi)
-            : null,
-          priceMP: item.product.priceMP ? Number(item.product.priceMP) : null,
           promoDiscount: Number(item.product.promoDiscount || 0),
-          promoDiscountPY: Number(item.product.promoDiscountPY || 0),
-          promoDiscountRappi: Number(item.product.promoDiscountRappi || 0),
-          promoDiscountMP: Number(item.product.promoDiscountMP || 0),
         },
       })),
     }));
@@ -496,7 +486,7 @@ export async function getAdvancedAnalytics(): Promise<{
     const sales = await prisma.sale.findMany({
       where: {
         date: { gte: thirtyDaysAgo },
-        status: { in: ["COMPLETED", "PENDING"] },
+        status: "COMPLETED",
       },
       include: {
         items: true,
@@ -787,10 +777,10 @@ export async function getRealTimeProfitability() {
         const price = Number(p.price);
         const margin = price > 0 ? ((price - cost) / price) * 100 : 0;
 
-        // Calculate platform margins too
-        const pYaPrice = Number(p.pricePedidosYa) || price;
-        const rappiPrice = Number(p.priceRappi) || price;
-        const mpPrice = Number(p.priceMP) || price;
+        // Calculate platform margins too (using same price now)
+        const pYaPrice = price;
+        const rappiPrice = price;
+        const mpPrice = price;
 
         const pYaComm = commMap["PEYA"] ?? 0;
         const rappiComm = commMap["RAPPI"] ?? 0;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { AnimatePresence } from "framer-motion";
 import { createSale } from "@/app/actions/sale-actions";
 import { getProducts } from "@/app/actions/product-actions";
@@ -23,81 +23,68 @@ import {
   Banknote,
   QrCode,
   Search,
-  ChevronUp,
+  ChevronDown,
+  X,
+  AlertTriangle,
+  Package,
+  Smartphone,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { generateWhatsAppLink } from "@/lib/whatsapp";
 import UpsellRecommender from "./UpsellRecommender";
+import { ComboComponentSelector } from "./ComboComponentSelector";
 import { Product } from "@/lib/types";
 
-// Types
-
+// ── Types ───────────────────────────────────────────────────────────────────
 type CartItem = {
   productId: string;
   productName: string;
   price: number;
   quantity: number;
+  note?: string; // e.g. "Reemplazo: Coca por Pepsi"
+  fulfillments?: { slotId: string; configuredProductId: string; deliveredProductId: string }[];
 };
 
-// Helper to calculate price based on channel and promotions
+// ── Helpers ─────────────────────────────────────────────────────────────────
 const calculateItemPrice = (product: Product, channel: string) => {
-  let basePrice = Number(product.price);
-  let discount = 0;
-  let isPromoActive = false;
-
-  if (channel === "RAPPI") {
-    basePrice = Number(product.priceRappi || product.price);
-    isPromoActive = product.isPromoRappi;
-    discount = Number(product.promoDiscountRappi || 0);
-  } else if (channel === "PEYA") {
-    basePrice = Number(product.pricePedidosYa || product.price);
-    isPromoActive = product.isPromoPY;
-    discount = Number(product.promoDiscountPY || 0);
-  } else if (channel === "MERCADOPAGO") {
-    basePrice = Number(product.priceMP || product.price);
-    isPromoActive = product.isPromoMP;
-    discount = Number(product.promoDiscountMP || 0);
-  } else {
-    // COUNTER, WHATSAPP, etc use direct price
-    basePrice = Number(product.price);
-    isPromoActive = product.isPromo;
-    discount = Number(product.promoDiscount || 0);
-  }
-
-  const finalPrice = isPromoActive
-    ? basePrice * (1 - discount / 100)
-    : basePrice;
-
+  const isAppChannel = ["PEYA", "RAPPI", "MERCADOPAGO"].includes(channel);
+  const basePrice = isAppChannel && product.priceApps ? Number(product.priceApps) : Number(product.price);
+  const isPromoActive = isAppChannel ? product.isPromoApps : product.isPromo;
+  const discount = isAppChannel ? Number(product.promoDiscountApps || 0) : Number(product.promoDiscount || 0);
+  const finalPrice = isPromoActive ? basePrice * (1 - discount / 100) : basePrice;
   return { basePrice, finalPrice, discount, isPromoActive };
 };
 
+const CHANNELS = [
+  { id: "COUNTER", label: "Mostrador", icon: Package },
+  { id: "RAPPI", label: "Rappi", icon: Smartphone },
+  { id: "PEYA", label: "Peya", icon: Smartphone },
+  { id: "MERCADOPAGO", label: "MP Delivery", icon: Smartphone },
+  { id: "WHATSAPP", label: "WhatsApp", icon: Smartphone },
+];
+
+// ── Component ────────────────────────────────────────────────────────────────
 export default function NewSalePage() {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const router = useRouter();
+  void router;
+
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [activeComboProduct, setActiveComboProduct] = useState<Product | null>(null);
 
-  // Ticket Data
+  // Ticket data
   const [clientName, setClientName] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [channel, setChannel] = useState("COUNTER");
   const [discount, setDiscount] = useState(0);
   const [showReceipt, setShowReceipt] = useState(false);
   const [showMobileCart, setShowMobileCart] = useState(false);
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(
-    null,
-  );
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<
     { id: string; name: string | null; phone: string | null }[]
   >([]);
@@ -109,122 +96,143 @@ export default function NewSalePage() {
     paymentMethod: string;
   } | null>(null);
 
-  const [categories, setCategories] = useState<{ id: string; name: string }[]>(
-    [],
-  );
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
 
+  // Load products + categories
   useEffect(() => {
     async function load() {
       setLoading(true);
-      const [prodRes, catRes] = await Promise.all([
-        getProducts(),
-        getCategories(),
-      ]);
-
-      if (prodRes.success && prodRes.data) {
-        setProducts(prodRes.data as Product[]);
-      }
-      if (catRes.success && catRes.data) {
-        setCategories(catRes.data);
-      }
+      const [prodRes, catRes] = await Promise.all([getProducts(), getCategories()]);
+      if (prodRes.success && prodRes.data) setProducts(prodRes.data as Product[]);
+      if (catRes.success && catRes.data) setCategories(catRes.data);
       setLoading(false);
     }
     load();
   }, []);
 
-  // When channel changes, update prices in the cart if they exist for the new channel
+  // Recalculate prices when channel changes
   useEffect(() => {
     if (products.length === 0) return;
-
     setCart((prev) =>
       prev.map((item) => {
         const product = products.find((p) => p.id === item.productId);
         if (!product) return item;
-
         const { finalPrice } = calculateItemPrice(product, channel);
         return { ...item, price: finalPrice };
-      }),
+      })
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channel, products.length]);
 
   const filteredProducts = useMemo(() => {
-    return products.filter((p) => {
-      if (selectedCategoryId === "ALL") return true;
-      if (selectedCategoryId === "NONE") return !p.categoryId;
-      return p.categoryId === selectedCategoryId;
-    });
-  }, [products, selectedCategoryId]);
+    let result = products.filter((p) => p.isActive);
+    if (selectedCategoryId !== "ALL") {
+      if (selectedCategoryId === "NONE") result = result.filter((p) => !p.categoryId);
+      else result = result.filter((p) => p.categoryId === selectedCategoryId);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter((p) => p.name.toLowerCase().includes(q));
+    }
+    return result;
+  }, [products, selectedCategoryId, searchQuery]);
 
-  const addToCart = (product: Product) => {
-    setCart((prev) => {
-      const existing = prev.find((item) => item.productId === product.id);
-      const { finalPrice } = calculateItemPrice(product, channel);
-
-      if (existing) {
-        return prev.map((item) =>
-          item.productId === product.id
-            ? { ...item, quantity: item.quantity + 1, price: finalPrice }
-            : item,
-        );
+  const addToCart = useCallback(
+    (product: Product) => {
+      // If it's a configurable combo, open the selector modal instead
+      if (product.comboSlots && product.comboSlots.length > 0) {
+        setActiveComboProduct(product);
+        return;
       }
-      return [
-        ...prev,
-        {
-          productId: product.id,
-          productName: product.name,
-          price: finalPrice,
-          quantity: 1,
-        },
-      ];
-    });
+
+      setCart((prev) => {
+        const existing = prev.find((item) => item.productId === product.id && !item.fulfillments);
+        const { finalPrice } = calculateItemPrice(product, channel);
+        if (existing) {
+          return prev.map((item) =>
+            item.productId === product.id && !item.fulfillments
+              ? { ...item, quantity: item.quantity + 1, price: finalPrice }
+              : item
+          );
+        }
+        return [
+          ...prev,
+          {
+            productId: product.id,
+            productName: product.name,
+            price: finalPrice,
+            quantity: 1,
+          },
+        ];
+      });
+    },
+    [channel]
+  );
+
+  const handleConfirmCombo = (fulfillments: { slotId: string; configuredProductId: string; deliveredProductId: string; extraPrice: number }[]) => {
+    if (!activeComboProduct) return;
+    const { finalPrice } = calculateItemPrice(activeComboProduct, channel);
+    const extraCharge = fulfillments.reduce((acc, f) => acc + (f.extraPrice || 0), 0);
+    const totalPrice = finalPrice + extraCharge;
+    
+    // We add combos as unique items if they have different fulfillments, 
+    // but for simplicity here we just add a new row to the cart for each combo configured
+    setCart((prev) => [
+      ...prev,
+      {
+        productId: activeComboProduct.id,
+        productName: activeComboProduct.name,
+        price: totalPrice,
+        quantity: 1,
+        fulfillments,
+      },
+    ]);
+    setActiveComboProduct(null);
   };
 
   const updateQuantity = (productId: string, delta: number) => {
     setCart((prev) =>
       prev
-        .map((item) => {
-          if (item.productId === productId) {
-            return { ...item, quantity: Math.max(0, item.quantity + delta) };
-          }
-          return item;
-        })
-        .filter((item) => item.quantity > 0),
+        .map((item) =>
+          item.productId === productId
+            ? { ...item, quantity: Math.max(0, item.quantity + delta) }
+            : item
+        )
+        .filter((item) => item.quantity > 0)
     );
   };
 
-  const subtotal = cart.reduce(
-    (sum, item) => sum + item.price * item.quantity,
-    0,
-  );
+  const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const total = Math.max(0, subtotal - discount);
+  const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
   const handleCheckout = async () => {
     if (cart.length === 0) return;
     setSubmitting(true);
-
     const res = await createSale({
       items: cart.map((item) => ({
         productId: item.productId,
         quantity: item.quantity,
         unitPrice: item.price,
+        fulfillments: item.fulfillments,
       })),
       paymentMethod,
-      total: total, // Correct: send net total after all discounts to the server
-      discount: discount, // This is the manual discount
+      total,
+      discount,
       clientName,
       channel,
       customerId: selectedCustomerId || undefined,
     });
 
     if (res.success) {
-      toast.success("Venta registrada correctamente");
+      toast.success("✓ Venta registrada");
       setLastSaleData({
         date: new Date(),
         total,
         items: [...cart],
-        clientName: clientName || "Cliente Mostrador",
+        clientName: clientName || "Mostrador",
         paymentMethod,
       });
       setShowReceipt(true);
@@ -236,142 +244,214 @@ export default function NewSalePage() {
       setDiscount(0);
       setShowMobileCart(false);
     } else {
-      toast.error(
-        res.error || "Error al registrar venta (Posible falta de stock)",
-      );
+      toast.error(res.error || "Error al registrar venta");
     }
     setSubmitting(false);
   };
 
+  // ── UI ───────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col lg:flex-row h-screen bg-black text-white selection:bg-primary selection:text-black overflow-hidden relative">
-      {/* --- LEFT SIDE: PRODUCTS --- */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden relative z-0">
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-3 sm:p-6 lg:p-8 pb-32 lg:pb-8">
-          {/* Header */}
-          <div className="flex items-center gap-4 mb-6 sm:mb-8">
-            <Link href="/">
-              <Button
-                variant="ghost"
-                className="rounded-full h-10 w-10 sm:h-12 sm:w-12 p-0 text-neutral-400 hover:text-white hover:bg-white/10"
-              >
-                <ArrowLeft className="h-5 w-5 sm:h-6 sm:w-6" />
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-xl sm:text-3xl font-black tracking-tighter text-white uppercase flex items-center gap-2">
-                Punto de Venta
-                <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-              </h1>
-              <p className="hidden sm:block text-sm text-neutral-500 font-medium">
-                Selecciona productos para generar la orden
-              </p>
-            </div>
+    <div className="flex h-screen bg-[#080808] text-white overflow-hidden">
+
+      {/* ═══════════════════════════════════════════════════════
+          LEFT — CATALOG
+      ═══════════════════════════════════════════════════════ */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+
+        {/* Header */}
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-white/5 bg-[#080808] shrink-0">
+          <Link href="/admin">
+            <button className="h-8 w-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-neutral-400 hover:text-white transition-colors">
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+          </Link>
+          <div>
+            <h1 className="text-sm font-black text-white uppercase tracking-wide flex items-center gap-2">
+              Punto de Venta
+              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+            </h1>
+            <p className="text-[9px] text-neutral-600 font-medium uppercase tracking-wider">
+              {new Date().toLocaleDateString("es-AR", {
+                weekday: "long",
+                day: "numeric",
+                month: "long",
+              })}
+            </p>
           </div>
 
-          {/* Category Filters (Sticky) */}
-          <div className="sticky top-0 z-20 bg-black/80 backdrop-blur-xl py-4 mb-4 -mx-3 px-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 border-b border-white/5">
-            {!loading && categories.length > 0 && (
-              <div className="flex gap-2 overflow-x-auto no-scrollbar">
-                <button
-                  onClick={() => setSelectedCategoryId("ALL")}
-                  className={`flex-none px-4 py-2 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-all border ${
-                    selectedCategoryId === "ALL"
-                      ? "bg-primary text-black border-primary shadow-[0_0_15px_rgba(251,191,36,0.2)]"
-                      : "bg-white/5 text-neutral-500 border-white/5 hover:bg-white/10"
-                  }`}
-                >
-                  Todos
-                </button>
-                {categories.map((cat) => (
-                  <button
-                    key={cat.id}
-                    onClick={() => setSelectedCategoryId(cat.id)}
-                    className={`flex-none px-4 py-2 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-all border ${
-                      selectedCategoryId === cat.id
-                        ? "bg-primary text-black border-primary shadow-[0_0_15px_rgba(251,191,36,0.2)]"
-                        : "bg-white/5 text-neutral-500 border-white/5 hover:bg-white/10"
-                    }`}
-                  >
-                    {cat.name}
-                  </button>
+          <div className="ml-auto flex items-center gap-2">
+            {/* Channel selector compact */}
+            <div className="relative">
+              <select
+                value={channel}
+                onChange={(e) => setChannel(e.target.value)}
+                className="appearance-none bg-white/5 border border-white/10 rounded-lg text-xs font-bold text-white pl-3 pr-7 py-1.5 outline-none focus:border-primary/50 cursor-pointer"
+              >
+                {CHANNELS.map((c) => (
+                  <option key={c.id} value={c.id} className="bg-black">
+                    {c.label}
+                  </option>
                 ))}
+              </select>
+              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-neutral-500 pointer-events-none" />
+            </div>
 
-                <button
-                  onClick={() => setSelectedCategoryId("NONE")}
-                  className={`flex-none px-4 py-2 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-all border ${
-                    selectedCategoryId === "NONE"
-                      ? "bg-primary text-black border-primary shadow-[0_0_15px_rgba(251,191,36,0.2)]"
-                      : "bg-white/5 text-neutral-500 border-white/5 hover:bg-white/10"
-                  }`}
-                >
-                  Otros
-                </button>
-              </div>
+            {/* Mobile cart toggle */}
+            <button
+              onClick={() => setShowMobileCart(true)}
+              className="lg:hidden relative h-8 px-3 rounded-lg bg-primary text-black font-bold text-xs flex items-center gap-1.5"
+            >
+              <ShoppingCart className="h-3.5 w-3.5" />
+              {cartCount > 0 && (
+                <span className="bg-black text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-black">
+                  {cartCount}
+                </span>
+              )}
+              <span className="font-black">
+                ${total.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* Category filter + search */}
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-white/5 shrink-0 overflow-x-auto no-scrollbar">
+          {/* Search */}
+          <div className="relative shrink-0 w-44">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-600" />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar..."
+              className="w-full pl-8 pr-3 py-1.5 bg-white/5 border border-white/5 rounded-lg text-xs text-white placeholder:text-neutral-700 outline-none focus:border-primary/40 transition-colors"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-600 hover:text-white"
+              >
+                <X className="h-3 w-3" />
+              </button>
             )}
           </div>
 
-          {/* Product Grid */}
-          <AnimatePresence mode="popLayout">
-            {loading ? (
-              <div className="flex justify-center py-32 text-neutral-500">
-                <Loader2 className="animate-spin h-10 w-10" />
-              </div>
-            ) : (
+          {/* Category pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+            {[{ id: "ALL", name: "Todos" }, ...categories].map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => setSelectedCategoryId(cat.id)}
+                className={`flex-none px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
+                  selectedCategoryId === cat.id
+                    ? "bg-primary text-black"
+                    : "bg-white/5 text-neutral-500 hover:bg-white/10 hover:text-white"
+                }`}
+              >
+                {cat.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Product grid */}
+        <div className="flex-1 overflow-y-auto p-3 pb-24 lg:pb-3">
+          {loading ? (
+            <div className="flex items-center justify-center h-48">
+              <Loader2 className="animate-spin h-8 w-8 text-neutral-600" />
+            </div>
+          ) : filteredProducts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-48 text-neutral-600">
+              <Package className="h-10 w-10 mb-2 opacity-30" />
+              <p className="text-sm font-bold">
+                {searchQuery ? "Sin resultados" : "No hay productos en esta categoría"}
+              </p>
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="mt-2 text-xs text-primary hover:underline"
+                >
+                  Limpiar búsqueda
+                </button>
+              )}
+            </div>
+          ) : (
+            <AnimatePresence mode="popLayout">
               <MotionDiv
-                key={selectedCategoryId}
-                className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-4 auto-rows-fr"
+                key={selectedCategoryId + searchQuery}
+                className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2"
                 initial="hidden"
                 animate="show"
-                variants={{
-                  show: { transition: { staggerChildren: 0.03 } },
-                }}
+                variants={{ show: { transition: { staggerChildren: 0.02 } } }}
               >
                 {filteredProducts.map((product) => {
-                  const { finalPrice, isPromoActive, basePrice, discount } =
+                  const { finalPrice, isPromoActive, basePrice, discount: promoDiscount } =
                     calculateItemPrice(product, channel);
+                  const cartItem = cart.find((i) => i.productId === product.id);
+                  const inCart = cartItem?.quantity ?? 0;
+
+                  // Stock check (from recipe ingredients)
+                  const hasLowStock = product.recipe?.some(
+                    (ri) => ri.ingredient.stock <= ri.ingredient.minStock
+                  );
 
                   return (
                     <MotionItem
                       key={product.id}
                       layout
                       variants={{
-                        hidden: { opacity: 0, scale: 0.9 },
+                        hidden: { opacity: 0, scale: 0.95 },
                         show: { opacity: 1, scale: 1 },
                       }}
                     >
                       <button
                         onClick={() => addToCart(product)}
-                        className="w-full h-full flex flex-col justify-between group relative overflow-hidden rounded-2xl border border-white/5 bg-zinc-900/40 p-3 sm:p-4 text-left transition-all hover:bg-zinc-800/80 hover:border-white/20 active:scale-[0.98]"
+                        className={`w-full h-full flex flex-col justify-between relative rounded-xl border p-3 text-left transition-all active:scale-[0.97] group
+                          ${inCart > 0
+                            ? "bg-primary/5 border-primary/40"
+                            : "bg-neutral-950 border-white/5 hover:border-white/15 hover:bg-neutral-900"
+                          }`}
                       >
-                        {/* Status/Promo Badges */}
+                        {/* Promo badge */}
                         {isPromoActive && (
-                          <div className="absolute top-0 right-0 p-2 sm:p-3">
-                            <span className="bg-primary text-black text-[9px] font-black px-1.5 py-0.5 rounded shadow-lg shadow-yellow-500/20">
-                              -{discount}%
+                          <div className="absolute top-2 right-2">
+                            <span className="bg-primary text-black text-[8px] font-black px-1.5 py-0.5 rounded">
+                              -{promoDiscount}%
                             </span>
                           </div>
                         )}
 
-                        <div className="space-y-1 mb-2">
-                          <h3 className="text-xs sm:text-sm font-bold leading-tight text-white group-hover:text-primary transition-colors line-clamp-2">
-                            {product.name}
-                          </h3>
-                        </div>
-
-                        <div className="mt-auto pt-2 border-t border-white/5 border-dashed flex items-end justify-between w-full">
-                          <div className="flex flex-col leading-none">
-                            {isPromoActive && (
-                              <span className="text-[10px] text-neutral-500 line-through mb-0.5">
-                                ${Math.round(basePrice).toLocaleString()}
-                              </span>
-                            )}
-                            <span className="text-sm sm:text-lg font-black text-primary tracking-tight">
-                              ${Math.round(finalPrice).toLocaleString()}
-                            </span>
+                        {/* Low stock warning */}
+                        {hasLowStock && (
+                          <div className="absolute top-2 left-2">
+                            <AlertTriangle className="h-3 w-3 text-amber-500" />
                           </div>
-                          <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-full bg-white/5 flex items-center justify-center text-neutral-500 group-hover:bg-primary group-hover:text-black transition-all">
-                            <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
+                        )}
+
+                        {/* Cart quantity badge */}
+                        {inCart > 0 && (
+                          <div className="absolute top-2 right-2 w-5 h-5 bg-primary rounded-full flex items-center justify-center">
+                            <span className="text-[9px] font-black text-black">{inCart}</span>
+                          </div>
+                        )}
+
+                        <p className="text-xs font-bold text-white line-clamp-2 leading-tight mb-2 pr-5">
+                          {product.name}
+                        </p>
+
+                        <div className="flex items-end justify-between mt-auto">
+                          <div>
+                            {isPromoActive && (
+                              <p className="text-[9px] text-neutral-600 line-through">
+                                ${Math.round(basePrice).toLocaleString("es-AR")}
+                              </p>
+                            )}
+                            <p className="text-sm font-black text-primary">
+                              ${Math.round(finalPrice).toLocaleString("es-AR")}
+                            </p>
+                          </div>
+                          <div className={`h-6 w-6 rounded-lg flex items-center justify-center transition-colors
+                            ${inCart > 0 ? "bg-primary text-black" : "bg-white/5 text-neutral-500 group-hover:bg-white/10 group-hover:text-white"}`}>
+                            <Plus className="h-3.5 w-3.5" />
                           </div>
                         </div>
                       </button>
@@ -379,75 +459,73 @@ export default function NewSalePage() {
                   );
                 })}
               </MotionDiv>
-            )}
-          </AnimatePresence>
+            </AnimatePresence>
+          )}
         </div>
       </div>
 
-      {/* --- RIGHT SIDE: CART (Desktop Sticky, Mobile Overlay) --- */}
+      {/* ═══════════════════════════════════════════════════════
+          RIGHT — TICKET (Desktop sticky, mobile overlay)
+      ═══════════════════════════════════════════════════════ */}
       <>
-        {/* Mobile Toggle Button (Floating) */}
+        {/* Mobile floating button */}
         <div className="lg:hidden fixed bottom-4 left-4 right-4 z-50">
-          <Button
+          <button
             onClick={() => setShowMobileCart(true)}
-            className="w-full h-16 rounded-2xl bg-primary text-black font-black uppercase text-lg shadow-[0_0_30px_rgba(251,191,36,0.3)] flex justify-between px-6 items-center"
+            className="w-full h-14 rounded-xl bg-primary text-black font-black flex items-center justify-between px-5 shadow-[0_0_30px_rgba(252,169,13,0.3)]"
           >
             <span className="flex items-center gap-2 text-sm">
               <ShoppingCart className="h-5 w-5" />
-              <span className="w-6 h-6 rounded-full bg-black text-white text-xs flex items-center justify-center">
-                {cart.reduce((acc, item) => acc + item.quantity, 0)}
+              <span className="w-5 h-5 rounded-full bg-black text-white text-[10px] flex items-center justify-center font-black">
+                {cartCount}
               </span>
-              Ver Pedido
+              Ver pedido
             </span>
-            <span>${total.toLocaleString()}</span>
-          </Button>
+            <span className="text-lg font-black">
+              ${total.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
+            </span>
+          </button>
         </div>
 
-        {/* Cart Container */}
+        {/* Ticket panel */}
         <div
           className={`
-            fixed lg:relative inset-0 z-40 lg:z-10
-            bg-zinc-950 lg:bg-[#070707] 
-            lg:w-[420px] xl:w-[480px] lg:border-l lg:border-white/10
+            fixed lg:relative inset-0 z-40 lg:z-auto
+            bg-[#0c0c0c] lg:bg-[#0a0a0a]
+            lg:w-[340px] xl:w-[380px] lg:border-l lg:border-white/5
             flex flex-col h-full
-            transform transition-transform duration-300 ease-in-out
+            transform transition-transform duration-300 ease-out
             ${showMobileCart ? "translate-y-0" : "translate-y-full lg:translate-y-0"}
           `}
         >
-          {/* Mobile Header (Close Button) */}
-          <div className="lg:hidden p-4 flex items-center justify-between border-b border-white/10 bg-black/50 backdrop-blur-xl">
-            <h2 className="text-lg font-black text-white uppercase flex items-center gap-2">
-              <ShoppingCart className="h-5 w-5 text-primary" />
-              Tu Pedido
-            </h2>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowMobileCart(false)}
-              className="rounded-full text-neutral-400 hover:text-white"
-            >
-              <ChevronUp className="h-6 w-6 rotate-180" />
-            </Button>
-          </div>
-
-          {/* Desktop Header */}
-          <div className="hidden lg:flex p-6 border-b border-white/5 items-center justify-between bg-zinc-900/30">
-            <h2 className="text-xl font-black text-white uppercase flex items-center gap-2 tracking-wide">
-              <ShoppingCart className="h-5 w-5 text-primary" />
-              Ticket Actual
-            </h2>
-            <div className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-mono text-neutral-400">
-              {new Date().toLocaleDateString()}
+          {/* Ticket header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 shrink-0">
+            <div className="flex items-center gap-2">
+              <ShoppingCart className="h-4 w-4 text-primary" />
+              <span className="text-sm font-bold text-white uppercase tracking-wide">
+                Ticket
+              </span>
+              {cartCount > 0 && (
+                <span className="bg-primary/10 text-primary text-[9px] font-black px-2 py-0.5 rounded-full">
+                  {cartCount} items
+                </span>
+              )}
             </div>
+            <button
+              onClick={() => setShowMobileCart(false)}
+              className="lg:hidden h-7 w-7 rounded-lg bg-white/5 flex items-center justify-center text-neutral-400"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
 
-          {/* Cart Items (Scrollable) */}
-          <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-3 lg:space-y-4 no-scrollbar">
+          {/* Cart items */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-1">
             {cart.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-neutral-600 space-y-6 opacity-30">
-                <ShoppingCart className="h-16 w-16" />
-                <p className="font-bold text-sm uppercase tracking-widest">
-                  Esperando productos...
+              <div className="h-full flex flex-col items-center justify-center text-neutral-700 gap-3">
+                <ShoppingCart className="h-12 w-12 opacity-20" />
+                <p className="text-xs font-bold uppercase tracking-widest">
+                  Seleccioná productos
                 </p>
               </div>
             ) : (
@@ -455,224 +533,191 @@ export default function NewSalePage() {
                 {cart.map((item) => (
                   <div
                     key={item.productId}
-                    className="group flex items-center justify-between p-3 rounded-2xl bg-zinc-900/50 border border-white/5 hover:border-white/10 transition-colors"
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/5 hover:border-white/10 transition-colors"
                   >
-                    <div className="flex-1 min-w-0 pr-4">
-                      <p className="text-white font-bold text-sm mb-0.5 truncate">
-                        {item.productName}
-                      </p>
-                      <p className="text-xs text-primary font-bold font-mono">
-                        ${(item.price * item.quantity).toFixed(2)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 bg-black/40 rounded-xl p-1 border border-white/5 shrink-0">
+                    {/* Qty controls */}
+                    <div className="flex items-center gap-1 shrink-0">
                       <button
                         onClick={() => updateQuantity(item.productId, -1)}
-                        className="h-8 w-8 flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                        className="h-6 w-6 rounded-lg bg-white/5 flex items-center justify-center text-neutral-400 hover:bg-white/10 hover:text-white transition-colors"
                       >
-                        <Minus className="h-4 w-4" />
+                        <Minus className="h-3 w-3" />
                       </button>
-                      <span className="text-sm font-black text-white w-6 text-center tabular-nums">
+                      <span className="text-xs font-black text-white w-5 text-center tabular-nums">
                         {item.quantity}
                       </span>
                       <button
                         onClick={() => updateQuantity(item.productId, 1)}
-                        className="h-8 w-8 flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                        className="h-6 w-6 rounded-lg bg-white/5 flex items-center justify-center text-neutral-400 hover:bg-white/10 hover:text-white transition-colors"
                       >
-                        <Plus className="h-4 w-4" />
+                        <Plus className="h-3 w-3" />
                       </button>
                     </div>
+
+                    <p className="flex-1 text-xs font-semibold text-neutral-300 truncate">
+                      {item.productName}
+                    </p>
+                    <p className="text-xs font-bold text-white tabular-nums shrink-0">
+                      ${(item.price * item.quantity).toLocaleString("es-AR", { maximumFractionDigits: 0 })}
+                    </p>
                   </div>
                 ))}
 
-                {/* Upsell Recommender Inline */}
-                <UpsellRecommender
-                  cart={cart}
-                  products={products}
-                  onAdd={addToCart}
-                />
+                <UpsellRecommender cart={cart} products={products} onAdd={addToCart} />
               </>
             )}
           </div>
 
-          {/* Settings & Totals (Fixed Bottom) */}
-          <div className="p-4 lg:p-6 bg-zinc-900/50 lg:bg-[#0A0A0A] border-t border-white/10 backdrop-blur-xl">
-            <div className="space-y-5">
-              {/* Customer Search */}
-              <div className="relative z-20">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-neutral-500" />
-                <Input
-                  placeholder="Cliente (Opcional)"
-                  value={clientName}
-                  onChange={async (e) => {
-                    setClientName(e.target.value);
-                    if (selectedCustomerId) setSelectedCustomerId(null);
-                    if (e.target.value.length > 1) {
-                      const res = await searchCustomers(e.target.value);
-                      if (res.success && res.data) setSearchResults(res.data);
-                    } else {
-                      setSearchResults([]);
-                    }
-                  }}
-                  className="pl-10 h-10 bg-white/5 border-white/5 rounded-xl text-sm focus:border-primary/50"
-                  onFocus={() => setShowMobileCart(true)} // Ensure keyboard doesn't hide cart on mobile
-                />
-                {searchResults.length > 0 && !selectedCustomerId && (
-                  <div className="absolute top-full left-0 w-full bg-[#151515] border border-white/10 rounded-xl shadow-2xl z-50 max-h-40 overflow-y-auto mt-2 p-1">
-                    {searchResults.map((c) => (
-                      <div
-                        key={c.id}
-                        className="p-3 hover:bg-white/5 cursor-pointer rounded-lg flex justify-between items-center group"
-                        onClick={() => {
-                          setClientName(c.name || "Cliente");
-                          setSelectedCustomerId(c.id);
-                          setSearchResults([]);
-                        }}
-                      >
-                        <span className="text-sm font-bold text-white group-hover:text-primary">
-                          {c.name}
-                        </span>
-                        <CheckCircle className="h-3 w-3 text-primary opacity-0 group-hover:opacity-100" />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Payment Methods & Channels */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <p className="text-[9px] font-black uppercase text-neutral-500 tracking-widest">
-                    Método de Pago
-                  </p>
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => setPaymentMethod("CASH")}
-                      className={`flex-1 h-8 rounded-lg border flex items-center justify-center ${paymentMethod === "CASH" ? "bg-primary border-primary text-black" : "border-white/10 text-neutral-500"}`}
+          {/* Ticket footer */}
+          <div className="shrink-0 border-t border-white/5 p-4 space-y-3 bg-[#080808]">
+            {/* Client name search */}
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-600" />
+              <Input
+                placeholder="Cliente (opcional)"
+                value={clientName}
+                onChange={async (e) => {
+                  setClientName(e.target.value);
+                  if (selectedCustomerId) setSelectedCustomerId(null);
+                  if (e.target.value.length > 1) {
+                    const res = await searchCustomers(e.target.value);
+                    if (res.success && res.data) setSearchResults(res.data);
+                  } else {
+                    setSearchResults([]);
+                  }
+                }}
+                className="pl-8 h-8 bg-white/5 border-white/5 rounded-lg text-xs focus:border-primary/50 text-white"
+              />
+              {searchResults.length > 0 && !selectedCustomerId && (
+                <div className="absolute bottom-full left-0 w-full bg-neutral-950 border border-white/10 rounded-xl shadow-2xl z-50 mb-1 max-h-32 overflow-y-auto">
+                  {searchResults.map((c) => (
+                    <div
+                      key={c.id}
+                      className="px-3 py-2 hover:bg-white/5 cursor-pointer flex justify-between items-center"
+                      onClick={() => {
+                        setClientName(c.name || "Cliente");
+                        setSelectedCustomerId(c.id);
+                        setSearchResults([]);
+                      }}
                     >
-                      <Banknote className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => setPaymentMethod("TRANSFER")}
-                      className={`flex-1 h-8 rounded-lg border flex items-center justify-center ${paymentMethod === "TRANSFER" ? "bg-primary border-primary text-black" : "border-white/10 text-neutral-500"}`}
-                    >
-                      <CreditCard className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => setPaymentMethod("QR")}
-                      className={`flex-1 h-8 rounded-lg border flex items-center justify-center ${paymentMethod === "QR" ? "bg-primary border-primary text-black" : "border-white/10 text-neutral-500"}`}
-                    >
-                      <QrCode className="h-4 w-4" />
-                    </button>
-                  </div>
+                      <span className="text-xs font-bold text-white">{c.name}</span>
+                      <CheckCircle className="h-3 w-3 text-primary" />
+                    </div>
+                  ))}
                 </div>
-                <div className="space-y-2">
-                  <p className="text-[9px] font-black uppercase text-neutral-500 tracking-widest">
-                    Canal
-                  </p>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button className="w-full h-8 bg-white/5 border border-white/10 rounded-lg text-xs font-bold text-white px-2 outline-none focus:border-primary/50 flex items-center justify-between">
-                        <span>
-                          {channel === "COUNTER" && "Mostrador"}
-                          {channel === "RAPPI" && "Rappi"}
-                          {channel === "PEYA" && "Peya"}
-                          {channel === "MERCADOPAGO" && "MP Delivery"}
-                          {channel === "WHATSAPP" && "WhatsApp"}
-                        </span>
-                        <ChevronUp className="h-3 w-3 rotate-180 text-neutral-500" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className="bg-[#111] border-white/10 text-white min-w-[200px]">
-                      {[
-                        { id: "COUNTER", label: "Mostrador" },
-                        { id: "RAPPI", label: "Rappi" },
-                        { id: "PEYA", label: "Peya" },
-                        { id: "MERCADOPAGO", label: "MP Delivery" },
-                        { id: "WHATSAPP", label: "WhatsApp" },
-                      ].map((c) => (
-                        <DropdownMenuItem
-                          key={c.id}
-                          onClick={() => setChannel(c.id)}
-                          className="hover:bg-white/10 cursor-pointer font-medium text-xs py-2"
-                        >
-                          {c.label}
-                          {channel === c.id && (
-                            <CheckCircle className="ml-auto h-3 w-3 text-primary" />
-                          )}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </div>
-
-              {/* Totals */}
-              <div className="pt-4 border-t border-white/5 border-dashed space-y-1">
-                <div className="flex justify-between text-neutral-400 text-xs">
-                  <span>Subtotal</span>
-                  <span>${subtotal.toFixed(2)}</span>
-                </div>
-
-                <div className="flex justify-between items-end pt-2">
-                  <span className="text-xl font-black text-white uppercase tracking-tight">
-                    Total
-                  </span>
-                  <span className="text-3xl font-black text-primary tracking-tighter">
-                    ${total.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-
-              {/* Checkout Button */}
-              <Button
-                size="lg"
-                className="w-full h-14 rounded-xl bg-primary text-black font-black uppercase tracking-widest text-sm shadow-[0_0_20px_rgba(251,191,36,0.2)] hover:shadow-[0_0_30px_rgba(251,191,36,0.4)] hover:scale-[1.01] active:scale-[0.99] transition-all"
-                disabled={cart.length === 0 || submitting}
-                onClick={handleCheckout}
-              >
-                {submitting ? (
-                  <Loader2 className="animate-spin" />
-                ) : (
-                  "COBRAR VENTA"
-                )}
-              </Button>
+              )}
             </div>
+
+            {/* Payment method + channel */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <p className="text-[8px] font-bold text-neutral-600 uppercase tracking-widest mb-1">
+                  Pago
+                </p>
+                <div className="flex gap-1">
+                  {[
+                    { id: "CASH", icon: Banknote },
+                    { id: "TRANSFER", icon: CreditCard },
+                    { id: "QR", icon: QrCode },
+                  ].map(({ id, icon: Icon }) => (
+                    <button
+                      key={id}
+                      onClick={() => setPaymentMethod(id)}
+                      className={`flex-1 h-8 rounded-lg border flex items-center justify-center transition-colors ${
+                        paymentMethod === id
+                          ? "bg-primary border-primary text-black"
+                          : "border-white/10 text-neutral-500 hover:border-white/20"
+                      }`}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-[8px] font-bold text-neutral-600 uppercase tracking-widest mb-1">
+                  Descuento
+                </p>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-neutral-600">
+                    $
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={discount || ""}
+                    onChange={(e) => setDiscount(Number(e.target.value) || 0)}
+                    placeholder="0"
+                    className="w-full pl-5 pr-2 h-8 bg-white/5 border border-white/10 rounded-lg text-xs text-white outline-none focus:border-primary/50 transition-colors"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Totals */}
+            <div className="space-y-1 pt-1 border-t border-white/5">
+              <div className="flex justify-between text-xs text-neutral-600">
+                <span>Subtotal</span>
+                <span>${subtotal.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</span>
+              </div>
+              {discount > 0 && (
+                <div className="flex justify-between text-xs text-red-400">
+                  <span>Descuento</span>
+                  <span>-${discount.toLocaleString("es-AR")}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-baseline pt-1">
+                <span className="text-sm font-black text-white uppercase">Total</span>
+                <span className="text-2xl font-black text-primary tracking-tighter">
+                  ${total.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
+                </span>
+              </div>
+            </div>
+
+            {/* Checkout button */}
+            <Button
+              className="w-full h-12 rounded-xl bg-primary text-black font-black uppercase tracking-widest text-sm shadow-[0_0_20px_rgba(252,169,13,0.2)] hover:shadow-[0_0_30px_rgba(252,169,13,0.4)] hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50 disabled:scale-100"
+              disabled={cart.length === 0 || submitting}
+              onClick={handleCheckout}
+            >
+              {submitting ? <Loader2 className="animate-spin h-5 w-5" /> : "Cobrar venta"}
+            </Button>
           </div>
         </div>
       </>
 
-      {/* Receipt Modal (Unchanged logic, style tweaks) */}
+      {/* ═══════════════════════════════════════════════════════
+          RECEIPT MODAL
+      ═══════════════════════════════════════════════════════ */}
       <Dialog open={showReceipt} onOpenChange={setShowReceipt}>
-        <DialogContent className="bg-zinc-950 text-white border border-white/10 max-w-sm p-0 sm:rounded-3xl shadow-2xl max-h-[85vh] overflow-y-auto no-scrollbar">
-          <div className="bg-primary p-8 text-center relative overflow-hidden">
-            <div className="absolute inset-0 bg-white/20 blur-3xl" />
-            <div className="bg-black/10 backdrop-blur-sm h-20 w-20 rounded-full flex items-center justify-center mx-auto mb-4 text-black relative z-10 shadow-xl">
-              <CheckCircle className="h-10 w-10" />
+        <DialogContent className="bg-neutral-950 text-white border border-white/10 max-w-sm p-0 rounded-3xl shadow-2xl max-h-[85vh] overflow-y-auto no-scrollbar">
+          {/* Success header */}
+          <div className="bg-primary p-8 text-center rounded-t-3xl">
+            <div className="bg-black/10 h-16 w-16 rounded-full flex items-center justify-center mx-auto mb-3">
+              <CheckCircle className="h-8 w-8 text-black" />
             </div>
-            <h2 className="text-3xl font-black text-black tracking-tight relative z-10">
-              ¡Venta Exitosa!
+            <h2 className="text-2xl font-black text-black tracking-tight">
+              ¡Venta registrada!
             </h2>
-            <p className="font-bold text-black/60 relative z-10 uppercase tracking-widest text-xs mt-1">
-              Burgertilin KDS
+            <p className="text-black/60 text-xs font-bold mt-1 uppercase tracking-widest">
+              Burger Tilín POS
             </p>
           </div>
 
-          <div className="p-8 space-y-6 relative">
-            <div className="absolute top-0 left-0 w-full h-4 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIxMCIgcHJlc2VydmVBc3BlY3RSYXRpbz0ibm9uZSI+PHBhdGggZD0iTTAgMTAgTTEwIDAgTDIwIDEwIiBmaWxsPSIjZmJYM2IyNCIgLz48L3N2Zz4=')] -mt-3 transform rotate-180"></div>
-
-            <div className="text-center pb-6 border-b border-white/5 border-dashed">
-              <p className="text-xs text-neutral-500 font-bold uppercase tracking-wider mb-2">
-                Total Pagado
+          <div className="p-6 space-y-4">
+            {/* Total */}
+            <div className="text-center pb-4 border-b border-white/5">
+              <p className="text-xs text-neutral-500 font-bold uppercase tracking-wider mb-1">
+                Total cobrado
               </p>
-              <p className="text-5xl font-black text-white tracking-tighter">
-                ${lastSaleData?.total.toFixed(0)}
+              <p className="text-4xl font-black text-white tracking-tighter">
+                ${lastSaleData?.total.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
               </p>
-              <div className="flex items-center justify-center gap-2 mt-3">
-                <span className="px-3 py-1 rounded-full bg-white/5 border border-white/5 text-[10px] font-mono text-neutral-400">
-                  {lastSaleData?.date.toLocaleTimeString()}
+              <div className="flex items-center justify-center gap-2 mt-2">
+                <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/5 text-[9px] font-mono text-neutral-500">
+                  {lastSaleData?.date.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}
                 </span>
-                <span className="px-3 py-1 rounded-full bg-primary/20 border border-primary/20 text-[10px] font-bold text-primary uppercase">
+                <span className="px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20 text-[9px] font-bold text-primary uppercase">
                   {lastSaleData?.paymentMethod === "CASH"
                     ? "Efectivo"
                     : lastSaleData?.paymentMethod === "TRANSFER"
@@ -681,37 +726,34 @@ export default function NewSalePage() {
                 </span>
               </div>
               {lastSaleData?.clientName && (
-                <p className="text-sm font-bold mt-4 text-neutral-300">
-                  Cliente:{" "}
-                  <span className="text-white">{lastSaleData.clientName}</span>
+                <p className="text-xs text-neutral-400 mt-2">
+                  Cliente: <span className="text-white font-bold">{lastSaleData.clientName}</span>
                 </p>
               )}
             </div>
 
-            <div className="space-y-3">
+            {/* Items */}
+            <div className="space-y-2">
               {lastSaleData?.items.map((item) => (
-                <div
-                  key={item.productId}
-                  className="flex justify-between text-sm items-baseline"
-                >
-                  <span className="text-neutral-400 font-medium">
-                    <strong className="text-white">{item.quantity}x</strong>{" "}
-                    {item.productName}
+                <div key={item.productId} className="flex justify-between text-sm">
+                  <span className="text-neutral-400">
+                    <strong className="text-white">{item.quantity}×</strong> {item.productName}
                   </span>
-                  <span className="font-bold font-mono text-white">
-                    ${(item.price * item.quantity).toFixed(0)}
+                  <span className="font-bold text-white">
+                    ${(item.price * item.quantity).toLocaleString("es-AR", { maximumFractionDigits: 0 })}
                   </span>
                 </div>
               ))}
             </div>
 
-            <div className="pt-6 space-y-3">
+            {/* Actions */}
+            <div className="pt-2 space-y-2">
               <Button
-                className="w-full bg-[#25D366] text-black hover:bg-[#20bd5a] font-bold h-12 rounded-xl"
+                className="w-full bg-[#25D366] text-white hover:bg-[#20bd5a] font-bold h-10 rounded-xl text-sm"
                 onClick={() => {
                   if (lastSaleData) {
                     const link = generateWhatsAppLink({
-                      id: "N/A", // We don't have ID here easily without waiting for server, but logic works without it for message text
+                      id: "N/A",
                       date: lastSaleData.date,
                       clientName: lastSaleData.clientName,
                       total: lastSaleData.total,
@@ -725,19 +767,29 @@ export default function NewSalePage() {
                   }
                 }}
               >
-                💬 Enviar Comprobante
+                💬 Enviar comprobante
               </Button>
               <Button
                 variant="outline"
-                className="w-full border-white/10 hover:bg-white/5 hover:text-white text-neutral-400 font-bold h-12 rounded-xl"
+                className="w-full border-white/10 hover:bg-white/5 text-neutral-400 hover:text-white font-bold h-10 rounded-xl text-sm"
                 onClick={() => setShowReceipt(false)}
               >
-                <Receipt className="mr-2 h-4 w-4" /> Nueva Venta
+                <Receipt className="mr-2 h-4 w-4" /> Nueva venta
               </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Combo Configuration Modal */}
+      {activeComboProduct && (
+        <ComboComponentSelector
+          combo={activeComboProduct}
+          isOpen={!!activeComboProduct}
+          onClose={() => setActiveComboProduct(null)}
+          onConfirm={handleConfirmCombo}
+        />
+      )}
     </div>
   );
 }
