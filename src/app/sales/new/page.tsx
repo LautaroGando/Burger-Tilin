@@ -40,6 +40,7 @@ import { Product } from "@/lib/types";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 type CartItem = {
+  cartItemId: string;
   productId: string;
   productName: string;
   price: number;
@@ -160,6 +161,7 @@ export default function NewSalePage() {
         return [
           ...prev,
           {
+            cartItemId: crypto.randomUUID(),
             productId: product.id,
             productName: product.name,
             price: finalPrice,
@@ -182,6 +184,7 @@ export default function NewSalePage() {
     setCart((prev) => [
       ...prev,
       {
+        cartItemId: crypto.randomUUID(),
         productId: activeComboProduct.id,
         productName: activeComboProduct.name,
         price: totalPrice,
@@ -192,11 +195,11 @@ export default function NewSalePage() {
     setActiveComboProduct(null);
   };
 
-  const updateQuantity = (productId: string, delta: number) => {
+  const updateQuantity = (cartItemId: string, delta: number) => {
     setCart((prev) =>
       prev
         .map((item) =>
-          item.productId === productId
+          item.cartItemId === cartItemId
             ? { ...item, quantity: Math.max(0, item.quantity + delta) }
             : item
         )
@@ -532,13 +535,13 @@ export default function NewSalePage() {
               <>
                 {cart.map((item) => (
                   <div
-                    key={item.productId}
+                    key={item.cartItemId}
                     className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/5 hover:border-white/10 transition-colors"
                   >
                     {/* Qty controls */}
                     <div className="flex items-center gap-1 shrink-0">
                       <button
-                        onClick={() => updateQuantity(item.productId, -1)}
+                        onClick={() => updateQuantity(item.cartItemId, -1)}
                         className="h-6 w-6 rounded-lg bg-white/5 flex items-center justify-center text-neutral-400 hover:bg-white/10 hover:text-white transition-colors"
                       >
                         <Minus className="h-3 w-3" />
@@ -547,7 +550,7 @@ export default function NewSalePage() {
                         {item.quantity}
                       </span>
                       <button
-                        onClick={() => updateQuantity(item.productId, 1)}
+                        onClick={() => updateQuantity(item.cartItemId, 1)}
                         className="h-6 w-6 rounded-lg bg-white/5 flex items-center justify-center text-neutral-400 hover:bg-white/10 hover:text-white transition-colors"
                       >
                         <Plus className="h-3 w-3" />

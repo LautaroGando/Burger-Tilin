@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import fs from "fs";
 import { autoTrain } from "./ai-actions";
 import { getStartOfDayInArgentina } from "@/lib/utils";
 import { normalizePlatformName } from "@/lib/constants";
@@ -73,7 +74,7 @@ export async function createSale(data: CreateSaleValues) {
               unitPrice: item.unitPrice,
               ...(item.fulfillments && item.fulfillments.length > 0
                 ? {
-                    fulfillments: {
+                    SaleItemFulfillment: {
                       create: item.fulfillments.map((f) => ({
                         slotId: f.slotId,
                         configuredProductId: f.configuredProductId,
@@ -129,6 +130,9 @@ export async function createSale(data: CreateSaleValues) {
           }
         }
       }
+    }, {
+      maxWait: 5000, // default is 2000
+      timeout: 20000, // default is 5000
     });
 
     // We don't have product names here easily without fetching, so keep it generic or fetch names.
@@ -145,9 +149,10 @@ export async function createSale(data: CreateSaleValues) {
     revalidatePath("/admin/custom-metrics");
 
     return { success: true };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Sale Error:", error);
-    return { success: false, error: "Error al procesar la venta" };
+    fs.writeFileSync("debug_sale_error.txt", error?.stack || error?.message || String(error));
+    return { success: false, error: "Error al procesar la venta: " + (error?.message || "") };
   }
 }
 
@@ -172,6 +177,10 @@ export async function getRecentSales() {
         product: {
           ...item.product,
           price: Number(item.product.price),
+          priceApps: item.product.priceApps ? Number(item.product.priceApps) : null,
+          pricePedidosYa: item.product.pricePedidosYa ? Number(item.product.pricePedidosYa) : null,
+          priceRappi: item.product.priceRappi ? Number(item.product.priceRappi) : null,
+          priceMP: item.product.priceMP ? Number(item.product.priceMP) : null,
         },
       })),
     }));

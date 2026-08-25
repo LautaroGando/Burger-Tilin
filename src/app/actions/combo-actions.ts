@@ -20,7 +20,34 @@ export async function getComboSlots(comboId: string) {
       },
       orderBy: { sortOrder: "asc" },
     });
-    return { success: true, data: slots };
+    const serializedSlots = slots.map((slot) => ({
+      ...slot,
+      defaultProduct: slot.defaultProduct
+        ? {
+            ...slot.defaultProduct,
+            price: Number(slot.defaultProduct.price),
+            priceApps: slot.defaultProduct.priceApps ? Number(slot.defaultProduct.priceApps) : null,
+            pricePedidosYa: slot.defaultProduct.pricePedidosYa ? Number(slot.defaultProduct.pricePedidosYa) : null,
+            priceRappi: slot.defaultProduct.priceRappi ? Number(slot.defaultProduct.priceRappi) : null,
+            priceMP: slot.defaultProduct.priceMP ? Number(slot.defaultProduct.priceMP) : null,
+          }
+        : null,
+      alternatives: slot.alternatives.map((alt) => ({
+        ...alt,
+        product: alt.product
+          ? {
+              ...alt.product,
+              price: Number(alt.product.price),
+              priceApps: alt.product.priceApps ? Number(alt.product.priceApps) : null,
+              pricePedidosYa: alt.product.pricePedidosYa ? Number(alt.product.pricePedidosYa) : null,
+              priceRappi: alt.product.priceRappi ? Number(alt.product.priceRappi) : null,
+              priceMP: alt.product.priceMP ? Number(alt.product.priceMP) : null,
+            }
+          : null,
+      })),
+    }));
+
+    return { success: true, data: serializedSlots };
   } catch (error) {
     console.error("Error fetching combo slots:", error);
     return { success: false, error: "Error al obtener componentes del combo" };
